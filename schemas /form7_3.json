@@ -1,1 +1,19 @@
+{
+  "form": "7_3",
+  "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（柔整）",
+  "template": "form7_3.pdf",
+
+  "pages": [
+    {
+      "page": 1,
+      "name": "front",
+      "fields": []
+    },
+    {
+      "page": 2,
+      "name": "back",
+      "fields": []
+    }
+  ]
+}
 
