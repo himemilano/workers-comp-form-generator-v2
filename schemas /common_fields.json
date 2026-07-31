@@ -1,1 +1,55 @@
+{
+  "family_name": {
+    "type": "string",
+    "label": "姓"
+  },
+
+  "given_name": {
+    "type": "string",
+    "label": "名"
+  },
+
+  "gender": {
+    "type": "enum",
+    "label": "性別",
+    "values": [
+      "male",
+      "female"
+    ]
+  },
+
+  "birth_date": {
+    "type": "date",
+    "label": "生年月日"
+  },
+
+  "postal_code": {
+    "type": "string",
+    "label": "郵便番号"
+  },
+
+  "address": {
+    "type": "string",
+    "label": "住所"
+  },
+
+  "injury_ampm": {
+    "type": "enum",
+    "label": "負傷時刻（午前午後）",
+    "values": [
+      "AM",
+      "PM"
+    ]
+  },
+
+  "injury_hour": {
+    "type": "number",
+    "label": "負傷時"
+  },
+
+  "injury_minute": {
+    "type": "number",
+    "label": "負傷分"
+  }
+}
 
