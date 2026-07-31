@@ -1,1 +1,23 @@
+{
+  "form": "7-4",
+  "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（はり・きゅう）",
+  "template": "form7_4.pdf",
+  "pages": [
+    {
+      "page": 1,
+      "type": "front",
+      "name": "表面"
+    },
+    {
+      "page": 2,
+      "type": "back",
+      "name": "裏面"
+    },
+    {
+      "page": 3,
+      "type": "attachment",
+      "name": "療養の内訳及び金額"
+    }
+  ]
+}
 
