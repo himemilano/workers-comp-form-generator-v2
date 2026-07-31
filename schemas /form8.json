@@ -1,1 +1,33 @@
+{
+  "form": "8",
+  "name": "休業補償給付支給請求書　複数事業労働者休業給付支給請求書　業務災害用・複数業務要因災害用",
+  "template": "form8.pdf",
+  "pages": [
+    {
+      "page": 1,
+      "type": "front",
+      "name": "表面"
+    },
+    {
+      "page": 2,
+      "type": "back",
+      "name": "裏面"
+    },
+    {
+      "page": 3,
+      "type": "attachment",
+      "name": "別紙1表面"
+    },
+    {
+      "page": 4,
+      "type": "attachment",
+      "name": "別紙1裏面"
+    },
+    {
+      "page": 5,
+      "type": "attachment",
+      "name": "別紙2"
+    }
+  ]
+}
 
