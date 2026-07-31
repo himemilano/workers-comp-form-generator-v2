@@ -1,1 +1,19 @@
+{
+  "form": "16_5_2",
+  "name": "療養給付たる療養の費用請求書（薬局）通勤災害用",
+  "template": "form16_5_2.pdf",
+
+  "pages": [
+    {
+      "page": 1,
+      "name": "front",
+      "fields": []
+    },
+    {
+      "page": 2,
+      "name": "back",
+      "fields": []
+    }
+  ]
+}
 
