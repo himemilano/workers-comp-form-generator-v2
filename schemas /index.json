@@ -1,1 +1,133 @@
+{
+  "forms": [
+    {
+      "id": "form5",
+      "formNumber": "5",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の給付請求書　業務災害用・複数業務要因災害用",
+      "template": "form5.pdf",
+      "schema": "form5.json",
+      "pages": 2
+    },
+    {
+      "id": "form6",
+      "formNumber": "6",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の給付を受ける指定病院等（変更）届",
+      "template": "form6.pdf",
+      "schema": "form6.json",
+      "pages": 2
+    },
+    {
+      "id": "form7",
+      "formNumber": "7-1",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書",
+      "template": "form7.pdf",
+      "schema": "form7.json",
+      "pages": 2
+    },
+    {
+      "id": "form7_2",
+      "formNumber": "7-2",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（薬局）",
+      "template": "form7_2.pdf",
+      "schema": "form7_2.json",
+      "pages": 2
+    },
+    {
+      "id": "form7_3",
+      "formNumber": "7-3",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（柔整）",
+      "template": "form7_3.pdf",
+      "schema": "form7_3.json",
+      "pages": 2
+    },
+    {
+      "id": "form7_4",
+      "formNumber": "7-4",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（はり・きゅう）",
+      "template": "form7_4.pdf",
+      "schema": "form7_4.json",
+      "pages": 3
+    },
+    {
+      "id": "form7_5",
+      "formNumber": "7-5",
+      "name": "療養補償給付及び複数事業労働者療養給付たる療養の費用請求書（訪看）",
+      "template": "form7_5.pdf",
+      "schema": "form7_5.json",
+      "pages": 2
+    },
+    {
+      "id": "form8",
+      "formNumber": "8",
+      "name": "休業補償給付支給請求書　複数事業労働者休業給付支給請求書　業務災害用・複数業務要因災害用",
+      "template": "form8.pdf",
+      "schema": "form8.json",
+      "pages": 5
+    },
+    {
+      "id": "form16_3",
+      "formNumber": "16-3",
+      "name": "療養給付たる療養の給付請求書　通勤災害用",
+      "template": "form16_3.pdf",
+      "schema": "form16_3.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_4",
+      "formNumber": "16-4",
+      "name": "療養給付たる療養の給付を受ける指定病院等（変更）届",
+      "template": "form16_4.pdf",
+      "schema": "form16_4.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_5",
+      "formNumber": "16-5-1",
+      "name": "療養給付たる療養の費用請求書　通勤災害用",
+      "template": "form16_5.pdf",
+      "schema": "form16_5.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_5_2",
+      "formNumber": "16-5-2",
+      "name": "療養給付たる療養の費用請求書（薬局）通勤災害用",
+      "template": "form16_5_2.pdf",
+      "schema": "form16_5_2.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_5_3",
+      "formNumber": "16-5-3",
+      "name": "療養給付たる療養の費用請求書（柔整）通勤災害用",
+      "template": "form16_5_3.pdf",
+      "schema": "form16_5_3.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_5_4",
+      "formNumber": "16-5-4",
+      "name": "療養給付たる療養の費用請求書（はり・きゅう）通勤災害用",
+      "template": "form16_5_4.pdf",
+      "schema": "form16_5_4.json",
+      "pages": 3
+    },
+    {
+      "id": "form16_5_5",
+      "formNumber": "16-5-5",
+      "name": "療養給付たる療養の費用請求書（訪看）通勤災害用",
+      "template": "form16_5_5.pdf",
+      "schema": "form16_5_5.json",
+      "pages": 2
+    },
+    {
+      "id": "form16_6",
+      "formNumber": "16-6",
+      "name": "休業給付支給請求書　通勤災害用",
+      "template": "form16_6.pdf",
+      "schema": "form16_6.json",
+      "pages": 5
+    }
+  ]
+}
 
