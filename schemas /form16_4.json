@@ -1,1 +1,19 @@
+{
+  "form": "16_4",
+  "name": "療養給付たる療養の給付を受ける指定病院等（変更）届",
+  "template": "form16_4.pdf",
+
+  "pages": [
+    {
+      "page": 1,
+      "name": "front",
+      "fields": []
+    },
+    {
+      "page": 2,
+      "name": "back",
+      "fields": []
+    }
+  ]
+}
 
