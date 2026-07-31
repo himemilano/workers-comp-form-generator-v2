@@ -1,1 +1,23 @@
+{
+  "form": "16-5-4",
+  "name": "療養給付たる療養の費用請求書（はり・きゅう）通勤災害用",
+  "template": "form16_5_4.pdf",
+  "pages": [
+    {
+      "page": 1,
+      "type": "front",
+      "name": "表面"
+    },
+    {
+      "page": 2,
+      "type": "back",
+      "name": "裏面"
+    },
+    {
+      "page": 3,
+      "type": "attachment",
+      "name": "療養の内訳及び金額"
+    }
+  ]
+}
 
