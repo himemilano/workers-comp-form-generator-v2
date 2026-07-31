@@ -1,1 +1,19 @@
+{
+  "form": "16_5_3",
+  "name": "療養給付たる療養の費用請求書（柔整）通勤災害用",
+  "template": "form16_5_3.pdf",
+
+  "pages": [
+    {
+      "page": 1,
+      "name": "front",
+      "fields": []
+    },
+    {
+      "page": 2,
+      "name": "back",
+      "fields": []
+    }
+  ]
+}
 
