@@ -28,10 +28,17 @@ async function renderSinglePdf(formType: "form5" | "form6", data: Record<string,
   const page = pdfDoc.getPages()[0];
   const schema = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
 
-// schema が配列でない場合（オブジェクトなどの場合）でも安全に配列に変換する
-const items = Array.isArray(schema) ? schema : (schema.fields || schema.items || Object.values(schema));
+// pages構造・fields構造・配列のどれでも正しく全項目を取り出す
+let fields: any[] = [];
+if (Array.isArray(schema)) {
+  fields = schema;
+} else if (schema.pages && Array.isArray(schema.pages)) {
+  fields = schema.pages.flatMap((p: any) => p.fields || []);
+} else if (schema.fields && Array.isArray(schema.fields)) {
+  fields = schema.fields;
+}
 
-for (const item of items) {
+for (const item of fields) {
     const val = data[item.id];
     if (val === undefined || val === null || val === "") continue;
 
