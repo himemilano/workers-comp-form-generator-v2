@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
-    "test:pdf": "ts-node src/pdf/generateForm5.ts"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
