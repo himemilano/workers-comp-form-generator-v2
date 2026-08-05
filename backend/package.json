@@ -7,11 +7,15 @@
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^20.19.43",
     "ts-node": "^10.9.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   }
 }
