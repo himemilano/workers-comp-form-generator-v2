@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/fonts && cp -r src/fonts/* dist/fonts/ 2>/dev/null || cp -r fonts/* dist/fonts/ 2>/dev/null || true",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
