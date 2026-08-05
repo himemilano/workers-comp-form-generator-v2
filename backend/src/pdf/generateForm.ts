@@ -28,8 +28,10 @@ async function renderSinglePdf(formType: "form5" | "form6", data: Record<string,
   const page = pdfDoc.getPages()[0];
   const schema = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
 
-  // スキーマの座標に従ってデータを出力
-  for (const item of schema) {
+// schema が配列でない場合（オブジェクトなどの場合）でも安全に配列に変換する
+const items = Array.isArray(schema) ? schema : (schema.fields || schema.items || Object.values(schema));
+
+for (const item of items) {
     const val = data[item.id];
     if (val === undefined || val === null || val === "") continue;
 
