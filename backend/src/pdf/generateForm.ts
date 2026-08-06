@@ -9,7 +9,23 @@ const rootDir = path.resolve(__dirname, "../../..");
 const schemasDir = path.join(rootDir, "schemas");
 const templatesDir = path.join(rootDir, "templates");
 const fontsDir = path.join(__dirname, "../fonts");
-const outputDir = path.join(rootDir, "output");
+
+/**
+ * 長文・多行対応が必要なフィールドIDの判定セット（Form5 / Form6 共通）
+ */
+const MULTILINE_FIELD_IDS = new Set([
+  "accident_detail",
+  "Reason_for_transfer_to_another_hospital",
+  "Address_of_the_person_filing_the_notification",
+  "Address_of_the_hospital_after_transfer",
+  "Claimant's_address",
+  "Hospital_Address",
+  "Hospital_after_transfer",
+  "Claim_Hospital_name",
+  "Location_and_condition_of_the_injury",
+  "worker_name",
+  "Name_of_the_person_filing_the_notification",
+]);
 
 /**
  * 2桁ゼロ埋めヘルパー
@@ -74,13 +90,13 @@ async function renderSinglePdf(formType: "form5" | "form6", data: Record<string,
     const val = data[item.id];
     if (val === undefined || val === null || val === "") continue;
 
-    // 該当ページの取得（1ページ目: 0, 2ページ目: 1）
     const pageIndex = (item.page || 1) - 1;
     const page = pages[pageIndex] || pages[0];
 
     const x = item.x;
     const y = item.y;
-    const fontSize = item.fontSize || 10;
+    let fontSize = item.fontSize || 10;
+    const strVal = String(val);
 
     // 〇印の描画処理
     if (item.type === "circle" || val === "〇") {
@@ -90,7 +106,6 @@ async function renderSinglePdf(formType: "form5" | "form6", data: Record<string,
 
     // マス目（数字の1文字ずつズレ配置）処理
     if (item.letterSpacing && item.letterSpacing > 0) {
-      const strVal = String(val);
       for (let i = 0; i < strVal.length; i++) {
         page.drawText(strVal[i], {
           x: x + i * item.letterSpacing,
@@ -103,21 +118,39 @@ async function renderSinglePdf(formType: "form5" | "form6", data: Record<string,
       continue;
     }
 
-    // 通常テキスト描画（長文折り返し対応）
-    const strVal = String(val);
-    if (item.maxLineWidth && strVal.length > 20) {
-      const chunkSize = item.chunkSize || 22;
+    // --- 折り返し・自動フォント縮小の判定 ---
+    const isMultilineTarget =
+      item.multiline ||
+      item.maxLineWidth ||
+      item.chunkSize ||
+      MULTILINE_FIELD_IDS.has(item.id);
+
+    if (isMultilineTarget && strVal.length > (item.maxSingleLineLength || 12)) {
+      // 改行・折り返し設定
+      const chunkSize = item.chunkSize || (fontSize <= 8 ? 18 : 14);
+      const lineHeight = item.lineHeight || (fontSize + 2);
       const lines = strVal.match(new RegExp(`.{1,${chunkSize}}`, "g")) || [strVal];
-      lines.slice(0, 4).forEach((lineText, idx) => {
+
+      // 3行以上になる場合は綺麗に収まるよう自動縮小
+      if (lines.length >= 3 && !item.fontSize) {
+        fontSize = Math.max(7.5, fontSize - 1.5);
+      }
+
+      const maxLines = item.maxLines || 4;
+      lines.slice(0, maxLines).forEach((lineText, idx) => {
         page.drawText(lineText, {
           x: x,
-          y: y - idx * (fontSize + 2),
+          y: y - idx * lineHeight,
           size: fontSize,
           font: customFont,
           color: rgb(0, 0, 0),
         });
       });
     } else {
+      // 単行表示だが文字数が長い場合の自動フォント縮小
+      if (!item.fontSize && strVal.length > 15) {
+        fontSize = Math.max(7.5, 10 - Math.floor((strVal.length - 15) / 4));
+      }
       page.drawText(strVal, { x, y, size: fontSize, font: customFont, color: rgb(0, 0, 0) });
     }
   }
@@ -138,7 +171,6 @@ export async function generateForm5PDFs(inputText: string): Promise<{ filename: 
   const hospZip = splitZipCode(parsed["診療を受けた病院郵便番号(例: 100-0001)"]);
   const hospTel = splitTelNumber(parsed["病院電話番号(例: 03-1234-5678)"]);
 
-  // 基本データ構造（schemaのidと1対1でマッピング）
   const baseData: Record<string, any> = {
     "Labor_insurance_No.": parsed["労働保険番号(14桁)"] || parsed["労働保険番号"],
     worker_name: parsed["氏名(漢字)"],
@@ -149,9 +181,9 @@ export async function generateForm5PDFs(inputText: string): Promise<{ filename: 
     "Claimant's_address": (parsed["住所都道府県"] || "") + (parsed["住所市町村以降"] || ""),
     zip_first: zip.first,
     zip_last: zip.last,
-    tel_first: tel.first,
-    tel_middle: tel.middle,
-    tel_last: tel.last,
+    tel_first: tel.area,
+    tel_middle: tel.city,
+    tel_last: tel.num,
     Job_type: parsed["職種"],
     Date_of_injury: parsed["負傷年月日(例: 令和8年8月29日→080829)"],
     disaster_time_type: parsed["負傷時刻区分(AM または PM)"],
@@ -163,17 +195,17 @@ export async function generateForm5PDFs(inputText: string): Promise<{ filename: 
     Hospital_Address: parsed["診療を受けた病院住所"],
     Hospital_zip_first: hospZip.first,
     Hospital_zip_last: hospZip.last,
-    Hospital_tel_first: hospTel.first,
-    Hospital_tel_middle: hospTel.middle,
-    Hospital_tel_last: hospTel.last,
+    Hospital_tel_first: hospTel.area,
+    Hospital_tel_middle: hospTel.city,
+    Hospital_tel_last: hospTel.num,
     Location_and_condition_of_the_injury: parsed["傷病の部位及び状態"],
   };
 
-  // ① 病院用PDF生成
+  // ① 病院用PDF
   const hospitalBuffer = await renderSinglePdf("form5", baseData);
   results.push({ filename: "form5_病院用.pdf", buffer: hospitalBuffer });
 
-  // ② 薬局情報が存在する場合は薬局用PDFも生成
+  // ② 薬局用PDF
   if (parsed["調剤を受けた薬局名"]) {
     const pharmZip = splitZipCode(parsed["薬局の郵便番号(例: 100-0001)"]);
     const pharmTel = splitTelNumber(parsed["薬局の電話番号(例: 03-1234-5678)"]);
@@ -184,9 +216,9 @@ export async function generateForm5PDFs(inputText: string): Promise<{ filename: 
       Hospital_Address: parsed["薬局の住所"],
       Hospital_zip_first: pharmZip.first,
       Hospital_zip_last: pharmZip.last,
-      Hospital_tel_first: pharmTel.first,
-      Hospital_tel_middle: pharmTel.middle,
-      Hospital_tel_last: pharmTel.last,
+      Hospital_tel_first: pharmTel.area,
+      Hospital_tel_middle: pharmTel.city,
+      Hospital_tel_last: pharmTel.num,
     };
     const pharmacyBuffer = await renderSinglePdf("form5", pharmacyData);
     results.push({ filename: "form5_薬局用.pdf", buffer: pharmacyBuffer });
@@ -211,7 +243,6 @@ export async function generateForm6PDFs(
   const zip = splitZipCode(f5Parsed["本人郵便番号(例: 123-4567)"]);
   const tel = splitTelNumber(f5Parsed["本人電話番号(例: 090-1234-5678)"]);
 
-  // Form5から引き継ぐ共通データ
   const commonBase = {
     "Labor_insurance_No.": f5Parsed["労働保険番号(14桁)"] || f5Parsed["労働保険番号"],
     worker_name: f5Parsed["氏名(漢字)"],
@@ -220,9 +251,9 @@ export async function generateForm6PDFs(
     "Claimant's_address": claimantAddress,
     zip_first: zip.first,
     zip_last: zip.last,
-    tel_first: tel.first,
-    tel_middle: tel.middle,
-    tel_last: tel.last,
+    tel_first: tel.area,
+    tel_middle: tel.city,
+    tel_last: tel.num,
     sex: f5Parsed["性別(男性は1、女性は3)"],
     Date_of_birth: f5Parsed["生年月日(例: 55年5月15日→550515)"],
     Japanese_era: f5Parsed["生年月日の和暦(昭和5, 平成7, 令和9)"],
@@ -238,7 +269,7 @@ export async function generateForm6PDFs(
     "Pension certificate number": f6Parsed["年金証書番号(4桁目以降)"],
   };
 
-  // ① 1回目の転院PDF（初診病院 → 1回目の転院先）
+  // ① 1回目の転院PDF
   if (f6Parsed["1回目の転院先病院名"]) {
     const transfer1Zip = splitZipCode(f6Parsed["1回目の病院の郵便番号(例: 123-4567)"]);
     const form6_1_Data = {
@@ -254,14 +285,14 @@ export async function generateForm6PDFs(
     results.push({ filename: "form6_1回目の転院.pdf", buffer: buffer1 });
   }
 
-  // ② 2回目の転院PDF（1回目の転院先 → 2回目の転院先）
+  // ② 2回目の転院PDF
   if (f6Parsed["2回目の転院先病院名"]) {
     const transfer2Zip = splitZipCode(f6Parsed["2回目の病院の郵便番号(例: 123-4567)"]);
     const form6_2_Data = {
       ...commonBase,
       Claim_Hospital_name: f6Parsed["1回目の転院先病院名"],
       Hospital_after_transfer: f6Parsed["2回目の転院先病院名"],
-      Address_of_the_hospital_after_transfer: f6Parsed["2回目の病院の住所"],
+      Address_of_the_hospital_after_transfer: f6Parsed["2回目の病院の住所"] || f6Parsed["2回目の転院先病院名"],
       Postal_code_first_of_the_hospital_after_transfer: transfer2Zip.first,
       Postal_code_last_of_the_hospital_after_transfer: transfer2Zip.last,
       Reason_for_transfer_to_another_hospital: f6Parsed["2回目の転院理由(例: 退院後、自宅近くでリハビリ通院を行うため 等)"],
