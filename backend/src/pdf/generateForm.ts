@@ -28,6 +28,83 @@ export interface PDFResult {
   buffer: Buffer;
 }
 
+// --- アセット（PDF・フォント・JSON）の柔軟なロード関数 ---
+
+/**
+ * 渡された相対パスからプロジェクト階層を遡ってファイルを探索して読み込む
+ */
+function loadAssetFile(relativePath: string): Buffer {
+  const possiblePaths = [
+    path.resolve(__dirname, relativePath),
+    path.resolve(__dirname, '..', relativePath),
+    path.resolve(__dirname, '../..', relativePath),
+    path.resolve(__dirname, '../../..', relativePath),
+    path.resolve(process.cwd(), relativePath),
+    path.resolve(process.cwd(), '..', relativePath),
+  ];
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      const buffer = fs.readFileSync(p);
+      if (buffer.length > 0) {
+        return buffer;
+      }
+    }
+  }
+
+  throw new Error(
+    `ファイル "${relativePath}" が見つかりませんでした。\n検索したパス:\n${possiblePaths.join('\n')}`
+  );
+}
+
+/**
+ * テンプレートPDFの読み込み (`templates/form5.pdf` など)
+ */
+function loadTemplatePdf(fileName: string): Buffer {
+  return loadAssetFile(`templates/${fileName}`);
+}
+
+/**
+ * フォントファイルの読み込み (`IPAexGothic.ttf`)
+ */
+function loadFontFile(): Buffer {
+  const fontPaths = [
+    'src/fonts/IPAexGothic.ttf',
+    'backend/src/fonts/IPAexGothic.ttf',
+    'fonts/IPAexGothic.ttf',
+  ];
+
+  for (const fp of fontPaths) {
+    try {
+      return loadAssetFile(fp);
+    } catch (e) {
+      // 順に試行
+    }
+  }
+  throw new Error('フォントファイル (IPAexGothic.ttf) が見つかりません。');
+}
+
+/**
+ * スキーマJSONの読み込み (`schemas/form5_schema.json` など)
+ */
+function loadSchemaFile(formNum: string): FormSchema {
+  const schemaPaths = [
+    `schemas/form${formNum}_schema.json`,
+    `schemas/form${formNum}.json`,
+    `backend/schemas/form${formNum}_schema.json`,
+  ];
+
+  for (const sp of schemaPaths) {
+    try {
+      const buf = loadAssetFile(sp);
+      return JSON.parse(buf.toString('utf-8'));
+    } catch (e) {
+      // 順に試行
+    }
+  }
+  throw new Error(`様式第${formNum}号のスキーマJSONが見つかりません。(schemas/form${formNum}_schema.json)`);
+}
+
 // --- 入力テキスト自動パース処理 ---
 
 /**
@@ -44,7 +121,7 @@ function parseInputText(inputText: any): Record<string, any> {
 
   const trimmed = inputText.trim();
 
-  // 1. もし JSON 形式で届いた場合（```json ... ``` も除去）
+  // 1. もし JSON 形式で届いた場合
   try {
     const cleaned = trimmed.replace(/```json\s?|\s?```/g, '').trim();
     if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
@@ -59,10 +136,8 @@ function parseInputText(inputText: any): Record<string, any> {
   const lines = trimmed.split(/\r?\n/);
 
   for (const line of lines) {
-    // 「：」または「:」で分割
     const match = line.match(/^([^：:]+)[：:](.*)$/);
     if (match) {
-      // 項目名から「【」や「】」や余白を除去
       const key = match[1].replace(/^【|】$/g, '').trim();
       const value = match[2].trim();
       if (key) {
@@ -348,7 +423,7 @@ export async function renderPdfForm(
   return await pdfDoc.save();
 }
 
-// --- ラッパー関数 (routes から呼び出されるエントリーポイント) ---
+// --- エントリーポイント関数 ---
 
 /**
  * 様式第5号 PDF生成 (配列形式で返却)
@@ -357,15 +432,10 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
   const rawInput = parseInputText(inputText);
   const processedData = processForm5Data(rawInput);
 
-  const templatePath = path.resolve(__dirname, '../assets/form5_template.pdf');
-  const fontPath = path.resolve(__dirname, '../assets/font.ttf');
-  const schemaPath = path.resolve(__dirname, '../assets/form5_schema.json');
-
-  const templatePdfBytes = fs.existsSync(templatePath) ? fs.readFileSync(templatePath) : new Uint8Array();
-  const fontBytes = fs.existsSync(fontPath) ? fs.readFileSync(fontPath) : new Uint8Array();
-  const schema: FormSchema = fs.existsSync(schemaPath) 
-    ? JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) 
-    : { form: '5', name: 'Form5', template: '', pages: [] };
+  // 画像で確認した構成に合わせた読み込み
+  const templatePdfBytes = loadTemplatePdf('form5.pdf');
+  const fontBytes = loadFontFile();
+  const schema = loadSchemaFile('5');
 
   const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
 
@@ -387,15 +457,10 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
   const f5Processed = processForm5Data(f5Input);
   const processedData = processForm6DataFromForm5(f5Processed, f6Input);
 
-  const templatePath = path.resolve(__dirname, '../assets/form6_template.pdf');
-  const fontPath = path.resolve(__dirname, '../assets/font.ttf');
-  const schemaPath = path.resolve(__dirname, '../assets/form6_schema.json');
-
-  const templatePdfBytes = fs.existsSync(templatePath) ? fs.readFileSync(templatePath) : new Uint8Array();
-  const fontBytes = fs.existsSync(fontPath) ? fs.readFileSync(fontPath) : new Uint8Array();
-  const schema: FormSchema = fs.existsSync(schemaPath) 
-    ? JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) 
-    : { form: '6', name: 'Form6', template: '', pages: [] };
+  // 画像で確認した構成に合わせた読み込み
+  const templatePdfBytes = loadTemplatePdf('form6.pdf');
+  const fontBytes = loadFontFile();
+  const schema = loadSchemaFile('6');
 
   const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
 
