@@ -19,7 +19,7 @@ router.post("/form5", async (req: Request, res: Response) => {
     const pdfResults = await generateForm5PDFs(inputText);
 
     // フロントエンドで扱いやすいよう Base64 形式に変換して返却
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",
@@ -47,7 +47,7 @@ router.post("/form6", async (req: Request, res: Response) => {
     // PDF生成処理の呼び出し（1回目転院・2回目転院の最大2枚）
     const pdfResults = await generateForm6PDFs(form5InputText, form6InputText);
 
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",

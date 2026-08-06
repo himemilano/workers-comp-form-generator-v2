@@ -1,8 +1,10 @@
 import { PDFDocument, rgb, PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import fs from 'fs';
+import path from 'path';
 
 // --- 型定義 ---
-interface FieldSchema {
+export interface FieldSchema {
   id: string;
   page: number;
   x: number;
@@ -10,7 +12,7 @@ interface FieldSchema {
   fontSize?: number;
 }
 
-interface FormSchema {
+export interface FormSchema {
   form: string;
   name: string;
   template: string;
@@ -19,6 +21,11 @@ interface FormSchema {
     name: string;
     fields: FieldSchema[];
   }[];
+}
+
+export interface PDFResult {
+  filename: string;
+  buffer: Buffer;
 }
 
 // --- ユーティリティ関数 ---
@@ -177,8 +184,8 @@ export function processForm6DataFromForm5(f5Data: Record<string, any>, f6Input: 
   const dob = String(f5Data['date_of_birth'] || '');
   if (dob.length === 6) {
     data['Year of birth'] = `${era}${dob.substring(0, 2)}年`;
-    data['Birth_month'] = String(parseInt(dob.substring(2, 4), 10)); // 先頭の0を除去
-    data['Birth_day'] = String(parseInt(dob.substring(4, 6), 10));   // 先頭の0を除去
+    data['Birth_month'] = String(parseInt(dob.substring(2, 4), 10));
+    data['Birth_day'] = String(parseInt(dob.substring(4, 6), 10));
   }
 
   data['age'] = f5Data['age'];
@@ -218,13 +225,13 @@ export function processForm6DataFromForm5(f5Data: Record<string, any>, f6Input: 
   data['Hospital_name'] = f5Data['Hospital_name'];
   data['Hospital_Address'] = f5Data['Hospital_Address'];
   data['Hospital_zip_first'] = f5Data['Hospital_zip_first'];
-  data['Hospital_zip_last'] = f5Data['Hospital_zip_last'];
+  data['Hospital_last'] = f5Data['Hospital_zip_last'];
   data['Location_and_condition_of_the_injury'] = f5Data['Location_and_condition_of_the_injury'];
 
   return data;
 }
 
-// --- メインPDF生成関数 ---
+// --- PDF描画処理 ---
 export async function renderPdfForm(
   pdfBytes: Uint8Array,
   schema: FormSchema,
@@ -244,7 +251,6 @@ export async function renderPdfForm(
     for (const field of pageSchema.fields) {
       const val = formData[field.id];
 
-      // 未入力（null, undefined, 空文字）は完全にスキップ
       if (val === undefined || val === null || val === '') {
         continue;
       }
@@ -252,7 +258,7 @@ export async function renderPdfForm(
       const strVal = String(val);
       const fontSize = field.fontSize || 10;
 
-      // 1. マス目（1文字ずつずらして描画）項目の判定
+      // 1. マス目項目の判定
       if (field.id === 'Labor_insurance_No.') {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
       } else if (field.id === 'date_of_birth' || field.id === 'Date_of_injury') {
@@ -265,7 +271,6 @@ export async function renderPdfForm(
       } else if (field.id === 'zip_last' || field.id === 'Hospital_zip_last' || field.id === 'Company_zip_last' || field.id === 'claimant_zip_last') {
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
       } 
-      // Form 6 固有のマス目項目
       else if (field.id === 'Labor_insurance_No._first') {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 2);
       } else if (field.id === 'Labor_insurance_No._last') {
@@ -276,12 +281,12 @@ export async function renderPdfForm(
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 10);
       }
 
-      // 2. 長文自動改行（4行以内）項目の判定
+      // 2. 長文自動改行項目の判定
       else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
         drawMultiLineText(page, strVal, field.x, field.y, 14, 28, 4, customFont, fontSize);
       }
 
-      // 3. 通常テキスト描画（住所・病院名・氏名など）
+      // 3. 通常テキスト描画
       else {
         page.drawText(strVal, {
           x: field.x,
@@ -295,4 +300,65 @@ export async function renderPdfForm(
   }
 
   return await pdfDoc.save();
+}
+
+// --- ラッパー関数 (routes から呼ばれるエントリーポイント) ---
+
+/**
+ * 様式第5号 PDF生成 (配列形式で返却)
+ */
+export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
+  const rawInput = typeof inputText === 'string' ? JSON.parse(inputText) : inputText;
+  const processedData = processForm5Data(rawInput);
+
+  // テンプレート・フォント・スキーマファイルの読み込みパスを設定（プロジェクト構造に合わせて要調整）
+  const templatePath = path.resolve(__dirname, '../assets/form5_template.pdf');
+  const fontPath = path.resolve(__dirname, '../assets/font.ttf');
+  const schemaPath = path.resolve(__dirname, '../assets/form5_schema.json');
+
+  const templatePdfBytes = fs.existsSync(templatePath) ? fs.readFileSync(templatePath) : new Uint8Array();
+  const fontBytes = fs.existsSync(fontPath) ? fs.readFileSync(fontPath) : new Uint8Array();
+  const schema: FormSchema = fs.existsSync(schemaPath) 
+    ? JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) 
+    : { form: '5', name: 'Form5', template: '', pages: [] };
+
+  const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
+
+  return [
+    {
+      filename: '様式第5号_療養補償給付支給請求書.pdf',
+      buffer: Buffer.from(pdfBytes),
+    },
+  ];
+}
+
+/**
+ * 様式第6号 PDF生成 (配列形式で返却)
+ */
+export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
+  const f5Input = typeof f5InputText === 'string' ? JSON.parse(f5InputText) : f5InputText;
+  const f6Input = typeof f6InputText === 'string' ? JSON.parse(f6InputText) : f6InputText;
+
+  const f5Processed = processForm5Data(f5Input);
+  const processedData = processForm6DataFromForm5(f5Processed, f6Input);
+
+  // テンプレート・フォント・スキーマファイルの読み込みパスを設定（プロジェクト構造に合わせて要調整）
+  const templatePath = path.resolve(__dirname, '../assets/form6_template.pdf');
+  const fontPath = path.resolve(__dirname, '../assets/font.ttf');
+  const schemaPath = path.resolve(__dirname, '../assets/form6_schema.json');
+
+  const templatePdfBytes = fs.existsSync(templatePath) ? fs.readFileSync(templatePath) : new Uint8Array();
+  const fontBytes = fs.existsSync(fontPath) ? fs.readFileSync(fontPath) : new Uint8Array();
+  const schema: FormSchema = fs.existsSync(schemaPath) 
+    ? JSON.parse(fs.readFileSync(schemaPath, 'utf-8')) 
+    : { form: '6', name: 'Form6', template: '', pages: [] };
+
+  const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
+
+  return [
+    {
+      filename: '様式第6号_療養補償給付指定病院等変更届.pdf',
+      buffer: Buffer.from(pdfBytes),
+    },
+  ];
 }

@@ -17,7 +17,7 @@ router.post("/form5", async (req: Request, res: Response) => {
     // 最新の生成ロジック呼び出し（病院用・薬局用）
     const pdfResults = await generateForm5PDFs(inputText);
 
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",
@@ -44,7 +44,7 @@ router.post("/form6", async (req: Request, res: Response) => {
     // 最新の生成ロジック呼び出し（1回目転院・2回目転院）
     const pdfResults = await generateForm6PDFs(form5InputText, form6InputText);
 
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",
