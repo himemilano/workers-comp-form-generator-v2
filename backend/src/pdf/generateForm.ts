@@ -28,6 +28,52 @@ export interface PDFResult {
   buffer: Buffer;
 }
 
+// --- 入力テキスト自動パース処理 ---
+
+/**
+ * テキスト文章（`項目名：値` 形式や JSON）を連想配列（オブジェクト）に自動変換する
+ */
+function parseInputText(inputText: any): Record<string, any> {
+  if (typeof inputText === 'object' && inputText !== null) {
+    return inputText;
+  }
+
+  if (typeof inputText !== 'string') {
+    return {};
+  }
+
+  const trimmed = inputText.trim();
+
+  // 1. もし JSON 形式で届いた場合（```json ... ``` も除去）
+  try {
+    const cleaned = trimmed.replace(/```json\s?|\s?```/g, '').trim();
+    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+      return JSON.parse(cleaned);
+    }
+  } catch (e) {
+    // JSONでない場合はスルーしてテキスト解析へ
+  }
+
+  // 2. 「項目名：値」または「項目名: 値」形式のテキスト文章をパース
+  const result: Record<string, any> = {};
+  const lines = trimmed.split(/\r?\n/);
+
+  for (const line of lines) {
+    // 「：」または「:」で分割
+    const match = line.match(/^([^：:]+)[：:](.*)$/);
+    if (match) {
+      // 項目名から「【」や「】」や余白を除去
+      const key = match[1].replace(/^【|】$/g, '').trim();
+      const value = match[2].trim();
+      if (key) {
+        result[key] = value;
+      }
+    }
+  }
+
+  return result;
+}
+
 // --- ユーティリティ関数 ---
 
 /**
@@ -225,7 +271,7 @@ export function processForm6DataFromForm5(f5Data: Record<string, any>, f6Input: 
   data['Hospital_name'] = f5Data['Hospital_name'];
   data['Hospital_Address'] = f5Data['Hospital_Address'];
   data['Hospital_zip_first'] = f5Data['Hospital_zip_first'];
-  data['Hospital_last'] = f5Data['Hospital_zip_last'];
+  data['Hospital_zip_last'] = f5Data['Hospital_zip_last'];
   data['Location_and_condition_of_the_injury'] = f5Data['Location_and_condition_of_the_injury'];
 
   return data;
@@ -302,28 +348,13 @@ export async function renderPdfForm(
   return await pdfDoc.save();
 }
 
-// --- ラッパー関数 (routes から呼ばれるエントリーポイント) ---
+// --- ラッパー関数 (routes から呼び出されるエントリーポイント) ---
 
 /**
  * 様式第5号 PDF生成 (配列形式で返却)
  */
 export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
-  let rawInput: Record<string, any>;
-
-  if (typeof inputText === 'string') {
-    try {
-      // マークダウン記法 (```json ... ```) が含まれている場合は除去してパース
-      const cleanedText = inputText.replace(/```json\s?|\s?```/g, '').trim();
-      rawInput = JSON.parse(cleanedText);
-    } catch (e) {
-      throw new Error("入力テキストが有効なJSONフォーマットではありません。キーと値のオブジェクト形式で送信してください。");
-    }
-  } else if (typeof inputText === 'object' && inputText !== null) {
-    rawInput = inputText;
-  } else {
-    throw new Error("入力データが無効です。");
-  }
-
+  const rawInput = parseInputText(inputText);
   const processedData = processForm5Data(rawInput);
 
   const templatePath = path.resolve(__dirname, '../assets/form5_template.pdf');
@@ -350,19 +381,8 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
  * 様式第6号 PDF生成 (配列形式で返却)
  */
 export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
-  let f5Input: Record<string, any>;
-  let f6Input: Record<string, any>;
-
-  try {
-    f5Input = typeof f5InputText === 'string' 
-      ? JSON.parse(f5InputText.replace(/```json\s?|\s?```/g, '').trim()) 
-      : f5InputText;
-    f6Input = typeof f6InputText === 'string' 
-      ? JSON.parse(f6InputText.replace(/```json\s?|\s?```/g, '').trim()) 
-      : f6InputText;
-  } catch (e) {
-    throw new Error("Form5またはForm6の入力テキストが有効なJSONフォーマットではありません。");
-  }
+  const f5Input = parseInputText(f5InputText);
+  const f6Input = parseInputText(f6InputText);
 
   const f5Processed = processForm5Data(f5Input);
   const processedData = processForm6DataFromForm5(f5Processed, f6Input);
