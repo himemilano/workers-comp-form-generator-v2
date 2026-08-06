@@ -21,12 +21,35 @@ function pad2(val: any): string {
 }
 
 /**
+ * 存在確認付きフォントパス取得関数（どこにフォントがあっても自動発見する）
+ */
+function getFontPath(): string {
+  const candidates = [
+    path.join(__dirname, "../fonts/IPAexGothic.ttf"),
+    path.join(__dirname, "../../fonts/IPAexGothic.ttf"),
+    path.join(process.cwd(), "dist/fonts/IPAexGothic.ttf"),
+    path.join(process.cwd(), "src/fonts/IPAexGothic.ttf"),
+    path.join(process.cwd(), "fonts/IPAexGothic.ttf"),
+    path.join(rootDir, "backend/src/fonts/IPAexGothic.ttf"),
+    path.join(rootDir, "backend/fonts/IPAexGothic.ttf"),
+    path.join(rootDir, "fonts/IPAexGothic.ttf"),
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  throw new Error(`フォントファイルが見つかりません。探索先: ${candidates.join(", ")}`);
+}
+
+/**
  * 単一のPDFを生成する内部コア関数
  */
 async function renderSinglePdf(formType: "form5" | "form6", data: Record<string, any>): Promise<Buffer> {
   const templatePath = path.join(templatesDir, `${formType}.pdf`);
   const schemaPath = path.join(schemasDir, `${formType}.json`);
-  const fontPath = path.join(fontsDir, "IPAexGothic.ttf");
+  const fontPath = getFontPath();
 
   const pdfBytes = fs.readFileSync(templatePath);
   const pdfDoc = await PDFDocument.load(pdfBytes);

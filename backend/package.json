@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "src/index.ts",
   "scripts": {
-    "build": "tsc && mkdir -p dist/fonts dist/schemas dist/templates && cp -r src/fonts/* dist/fonts/ 2>/dev/null || cp -r fonts/* dist/fonts/ 2>/dev/null || true && cp -r ../schemas/* dist/schemas/ 2>/dev/null || cp -r schemas/* dist/schemas/ 2>/dev/null || true && cp -r ../templates/* dist/templates/ 2>/dev/null || cp -r templates/* dist/templates/ 2>/dev/null || true",
+    "build": "tsc && mkdir -p dist/fonts dist/schemas dist/templates && (cp -r src/fonts/* dist/fonts/ 2>/dev/null || true) && (cp -r fonts/* dist/fonts/ 2>/dev/null || true) && (cp -r ../schemas/* dist/schemas/ 2>/dev/null || true) && (cp -r schemas/* dist/schemas/ 2>/dev/null || true) && (cp -r ../templates/* dist/templates/ 2>/dev/null || true) && (cp -r templates/* dist/templates/ 2>/dev/null || true)",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
