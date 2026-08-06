@@ -1,305 +1,298 @@
-import fs from "fs";
-import path from "path";
-import { PDFDocument, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
-import { parseKeyValueText, splitZipCode, splitTelNumber } from "./parser";
+import { PDFDocument, rgb, PDFFont } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
 
-// ディレクトリパス設定
-const rootDir = path.resolve(__dirname, "../../..");
-const schemasDir = path.join(rootDir, "schemas");
-const templatesDir = path.join(rootDir, "templates");
-const fontsDir = path.join(__dirname, "../fonts");
-
-/**
- * 長文・多行対応が必要なフィールドIDの判定セット（Form5 / Form6 共通）
- */
-const MULTILINE_FIELD_IDS = new Set([
-  "accident_detail",
-  "Reason_for_transfer_to_another_hospital",
-  "Address_of_the_person_filing_the_notification",
-  "Address_of_the_hospital_after_transfer",
-  "Claimant's_address",
-  "Hospital_Address",
-  "Hospital_after_transfer",
-  "Claim_Hospital_name",
-  "Location_and_condition_of_the_injury",
-  "worker_name",
-  "Name_of_the_person_filing_the_notification",
-]);
-
-/**
- * 2桁ゼロ埋めヘルパー
- */
-function pad2(val: any): string {
-  if (val === undefined || val === null || val === "") return "";
-  const s = String(val).trim();
-  return s.length === 1 ? `0${s}` : s;
+// --- 型定義 ---
+interface FieldSchema {
+  id: string;
+  page: number;
+  x: number;
+  y: number;
+  fontSize?: number;
 }
 
-/**
- * 存在確認付きフォントパス取得関数（どこにフォントがあっても自動発見する）
- */
-function getFontPath(): string {
-  const candidates = [
-    path.join(__dirname, "../fonts/IPAexGothic.ttf"),
-    path.join(__dirname, "../../fonts/IPAexGothic.ttf"),
-    path.join(process.cwd(), "dist/fonts/IPAexGothic.ttf"),
-    path.join(process.cwd(), "src/fonts/IPAexGothic.ttf"),
-    path.join(process.cwd(), "fonts/IPAexGothic.ttf"),
-    path.join(rootDir, "backend/src/fonts/IPAexGothic.ttf"),
-    path.join(rootDir, "backend/fonts/IPAexGothic.ttf"),
-    path.join(rootDir, "fonts/IPAexGothic.ttf"),
-  ];
+interface FormSchema {
+  form: string;
+  name: string;
+  template: string;
+  pages: {
+    page: number;
+    name: string;
+    fields: FieldSchema[];
+  }[];
+}
 
-  for (const p of candidates) {
-    if (fs.existsSync(p)) {
-      return p;
+// --- ユーティリティ関数 ---
+
+/**
+ * 濁点・半濁点を分離する（例: "ギ" -> "キ", "゛"）
+ */
+function normalizeKatakana(str: string): string[] {
+  const normalized = str.normalize('NFD');
+  const result: string[] = [];
+  for (const char of normalized) {
+    if (char === '\u3099') {
+      result.push('゛');
+    } else if (char === '\u309A') {
+      result.push('ﾟ');
+    } else {
+      result.push(char);
     }
   }
-  throw new Error(`フォントファイルが見つかりません。探索先: ${candidates.join(", ")}`);
+  return result;
 }
 
 /**
- * 単一のPDFを生成する内部コア関数
+ * マス目用に1文字ずつ間隔を開けて描画する
  */
-async function renderSinglePdf(formType: "form5" | "form6", data: Record<string, any>): Promise<Buffer> {
-  const templatePath = path.join(templatesDir, `${formType}.pdf`);
-  const schemaPath = path.join(schemasDir, `${formType}.json`);
-  const fontPath = getFontPath();
+function drawSpacedText(
+  page: any,
+  text: string,
+  startX: number,
+  y: number,
+  pitch: number,
+  font: PDFFont,
+  fontSize: number,
+  maxLen?: number
+) {
+  if (!text) return;
+  const chars = Array.from(text).slice(0, maxLen);
+  chars.forEach((char, index) => {
+    page.drawText(char, {
+      x: startX + index * pitch,
+      y: y,
+      size: fontSize,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+  });
+}
 
-  const pdfBytes = fs.readFileSync(templatePath);
+/**
+ * 長文を複数行に自動折り返して描画する（最大4行）
+ */
+function drawMultiLineText(
+  page: any,
+  text: string,
+  x: number,
+  startY: number,
+  lineHeight: number,
+  maxCharsPerLine: number,
+  maxLines: number,
+  font: PDFFont,
+  fontSize: number
+) {
+  if (!text) return;
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const char of text) {
+    if (char === '\n') {
+      lines.push(currentLine);
+      currentLine = '';
+      continue;
+    }
+    if (currentLine.length >= maxCharsPerLine) {
+      lines.push(currentLine);
+      currentLine = '';
+    }
+    currentLine += char;
+  }
+  if (currentLine) lines.push(currentLine);
+
+  const targetLines = lines.slice(0, maxLines);
+  targetLines.forEach((line, idx) => {
+    page.drawText(line, {
+      x: x,
+      y: startY - idx * lineHeight,
+      size: fontSize,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+  });
+}
+
+/**
+ * Form 5 の入力データ補完・前処理
+ */
+export function processForm5Data(rawInput: Record<string, any>): Record<string, any> {
+  const data = { ...rawInput };
+
+  // 1. 固定・補完ルール
+  data['Date_of_injury,Japanese_era'] = '9'; // 令和固定
+  data['claimant_zip_first'] = data['zip_first'] || '';
+  data['claimant_zip_last'] = data['zip_last'] || '';
+  data["Claimant's_address"] = `${data['Personal_address_and_prefecture'] || ''}${data['Personal_address'] || ''}`;
+  data["Claimant's_name"] = data['worker_name'] || '';
+
+  // 2. AM/PM の 〇 表示ロジック
+  if (data['time_am_pm'] === 'AM' || data['time_am']) {
+    data['time_am'] = '〇';
+  } else if (data['time_am_pm'] === 'PM' || data['time_pm']) {
+    data['time_pm'] = '〇';
+  }
+
+  // 3. 裏面（Multiple）の 〇 表示
+  if (data['Multiple'] === '有') {
+    data['Multiple'] = '〇';
+  }
+
+  return data;
+}
+
+/**
+ * Form 6 用のデータ連動・マッピング処理
+ */
+export function processForm6DataFromForm5(f5Data: Record<string, any>, f6Input: Record<string, any>): Record<string, any> {
+  const data: Record<string, any> = { ...f6Input };
+
+  // Form 5 からの引き継ぎ項目
+  data['Area_of\u200b_the_Labor_Standards_Inspection_Office'] = f5Data['Area_of\u200b_the_Labor_Standards_Inspection_Office'];
+  data['Claim_Hospital_name'] = f5Data['Claim_Hospital_name'];
+  data['Year_of_entry'] = f5Data['Year_of_entry'];
+  data['Month_of_entry'] = f5Data['Month_of_entry'];
+  data['Date_of_entry'] = f5Data['Date_of_entry'];
+  data['zip_first'] = f5Data['zip_first'];
+  data['zip_last'] = f5Data['zip_last'];
+  data['claimant_tel_area'] = f5Data['claimant_tel_area'];
+  data['claimant_tel_city'] = f5Data['claimant_tel_city'];
+  data['claimant_tel_num'] = f5Data['claimant_tel_num'];
+  
+  data['Address_of_the_person_filing_the_notification'] = f5Data["Claimant's_address"];
+  data['Name_of_the_person_filing_the_notification'] = f5Data['worker_name'];
+
+  // 労働保険番号の分割
+  const laborNo = f5Data['Labor_insurance_No.'] || '';
+  data['Labor_insurance_No._first'] = laborNo.substring(0, 2);
+  data['Labor_insurance_No._last'] = laborNo.substring(2);
+
+  data['worker_name'] = f5Data['worker_name'];
+
+  // 性別 〇 印判定
+  if (String(f5Data['sex']) === '1') data['male'] = '〇';
+  if (String(f5Data['sex']) === '3') data['female'] = '〇';
+
+  // 生年月日変換 (5:昭和, 7:平成, 9:令和)
+  const eraMap: Record<string, string> = { '5': '昭和', '7': '平成', '9': '令和' };
+  const era = eraMap[String(f5Data['Date_of_birth,Japanese_era'])] || '';
+  const dob = String(f5Data['date_of_birth'] || '');
+  if (dob.length === 6) {
+    data['Year of birth'] = `${era}${dob.substring(0, 2)}年`;
+    data['Birth_month'] = String(parseInt(dob.substring(2, 4), 10)); // 先頭の0を除去
+    data['Birth_day'] = String(parseInt(dob.substring(4, 6), 10));   // 先頭の0を除去
+  }
+
+  data['age'] = f5Data['age'];
+  data["Claimant's_address"] = f5Data["Claimant's_address"];
+  data['Job_type'] = f5Data['Job_type'];
+
+  // 負傷年月日変換
+  const doi = String(f5Data['Date_of_injury'] || '');
+  if (doi.length === 6) {
+    data['injury_year'] = `令和${doi.substring(0, 2)}`;
+    data['injury_month'] = String(parseInt(doi.substring(2, 4), 10));
+    data['injury_day'] = String(parseInt(doi.substring(4, 6), 10));
+  }
+
+  // 負傷時間区分
+  if (f5Data['time_am'] === '〇') data['injury_time_am'] = '〇';
+  if (f5Data['time_pm'] === '〇') data['injury_time_pm'] = '〇';
+
+  data['disaster_hour'] = f5Data['disaster_hour'];
+  data['disaster_minute'] = f5Data['disaster_minute'];
+  data['accident_detail'] = f5Data['accident_detail'];
+
+  // 会社・病院情報のコピー
+  data['Year_of_proof_of_fact'] = f5Data['Year_of_proof_of_fact'];
+  data['Month_of_Proof_of_Fact'] = f5Data['Month_of_Proof_of_Fact'];
+  data['The_day_of_proof_of_fact'] = f5Data['The_day_of_proof_of_facts'];
+
+  data['Company_Name'] = f5Data['Company_Name'];
+  data['Company_zip_first'] = f5Data['Company_zip_first'];
+  data['Company_zip_last'] = f5Data['Company_zip_last'];
+  data['Company_tel_area'] = f5Data['Company_tel_area'];
+  data['Company_tel_city'] = f5Data['Company_tel_city'];
+  data['Company_tel_num'] = f5Data['Company_tel_num'];
+  data['Company_Address'] = f5Data['Company_Address'];
+  data["Representative's_name"] = f5Data["Representative's_name"];
+
+  data['Hospital_name'] = f5Data['Hospital_name'];
+  data['Hospital_Address'] = f5Data['Hospital_Address'];
+  data['Hospital_zip_first'] = f5Data['Hospital_zip_first'];
+  data['Hospital_zip_last'] = f5Data['Hospital_zip_last'];
+  data['Location_and_condition_of_the_injury'] = f5Data['Location_and_condition_of_the_injury'];
+
+  return data;
+}
+
+// --- メインPDF生成関数 ---
+export async function renderPdfForm(
+  pdfBytes: Uint8Array,
+  schema: FormSchema,
+  formData: Record<string, any>,
+  fontBytes: Uint8Array
+): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes);
   pdfDoc.registerFontkit(fontkit);
-
-  const fontBytes = fs.readFileSync(fontPath);
   const customFont = await pdfDoc.embedFont(fontBytes);
-  const pages = pdfDoc.getPages();
-  const schema = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
 
-  // pages構造・fields構造・配列のどれでも正しく全項目を取り出す
-  let fields: any[] = [];
-  if (Array.isArray(schema)) {
-    fields = schema;
-  } else if (schema.pages && Array.isArray(schema.pages)) {
-    fields = schema.pages.flatMap((p: any) => p.fields || []);
-  } else if (schema.fields && Array.isArray(schema.fields)) {
-    fields = schema.fields;
-  }
+  for (const pageSchema of schema.pages) {
+    const pageIndex = pageSchema.page - 1;
+    if (pageIndex >= pdfDoc.getPageCount()) continue;
 
-  for (const item of fields) {
-    const val = data[item.id];
-    if (val === undefined || val === null || val === "") continue;
+    const page = pdfDoc.getPage(pageIndex);
 
-    const pageIndex = (item.page || 1) - 1;
-    const page = pages[pageIndex] || pages[0];
+    for (const field of pageSchema.fields) {
+      const val = formData[field.id];
 
-    const x = item.x;
-    const y = item.y;
-    let fontSize = item.fontSize || 10;
-    const strVal = String(val);
+      // 未入力（null, undefined, 空文字）は完全にスキップ
+      if (val === undefined || val === null || val === '') {
+        continue;
+      }
 
-    // 〇印の描画処理
-    if (item.type === "circle" || val === "〇") {
-      page.drawText("〇", { x, y, size: fontSize, font: customFont, color: rgb(0, 0, 0) });
-      continue;
-    }
+      const strVal = String(val);
+      const fontSize = field.fontSize || 10;
 
-    // マス目（数字の1文字ずつズレ配置）処理
-    if (item.letterSpacing && item.letterSpacing > 0) {
-      for (let i = 0; i < strVal.length; i++) {
-        page.drawText(strVal[i], {
-          x: x + i * item.letterSpacing,
-          y: y,
+      // 1. マス目（1文字ずつずらして描画）項目の判定
+      if (field.id === 'Labor_insurance_No.') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
+      } else if (field.id === 'date_of_birth' || field.id === 'Date_of_injury') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 6);
+      } else if (field.id === 'Name_in_Katakana') {
+        const kanaChars = normalizeKatakana(strVal);
+        drawSpacedText(page, kanaChars.join(''), field.x, field.y, 13.5, customFont, fontSize, 16);
+      } else if (field.id === 'zip_first' || field.id === 'Hospital_zip_first' || field.id === 'Company_zip_first' || field.id === 'claimant_zip_first') {
+        drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 3);
+      } else if (field.id === 'zip_last' || field.id === 'Hospital_zip_last' || field.id === 'Company_zip_last' || field.id === 'claimant_zip_last') {
+        drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
+      } 
+      // Form 6 固有のマス目項目
+      else if (field.id === 'Labor_insurance_No._first') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 2);
+      } else if (field.id === 'Labor_insurance_No._last') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 12);
+      } else if (field.id === 'Pension_certificate_jurisdiction') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 2);
+      } else if (field.id === 'Pension certificate number') {
+        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 10);
+      }
+
+      // 2. 長文自動改行（4行以内）項目の判定
+      else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
+        drawMultiLineText(page, strVal, field.x, field.y, 14, 28, 4, customFont, fontSize);
+      }
+
+      // 3. 通常テキスト描画（住所・病院名・氏名など）
+      else {
+        page.drawText(strVal, {
+          x: field.x,
+          y: field.y,
           size: fontSize,
           font: customFont,
           color: rgb(0, 0, 0),
         });
       }
-      continue;
-    }
-
-    // --- 折り返し・自動フォント縮小の判定 ---
-    const isMultilineTarget =
-      item.multiline ||
-      item.maxLineWidth ||
-      item.chunkSize ||
-      MULTILINE_FIELD_IDS.has(item.id);
-
-    if (isMultilineTarget && strVal.length > (item.maxSingleLineLength || 12)) {
-      // 改行・折り返し設定
-      const chunkSize = item.chunkSize || (fontSize <= 8 ? 18 : 14);
-      const lineHeight = item.lineHeight || (fontSize + 2);
-      const lines = strVal.match(new RegExp(`.{1,${chunkSize}}`, "g")) || [strVal];
-
-      // 3行以上になる場合は綺麗に収まるよう自動縮小
-      if (lines.length >= 3 && !item.fontSize) {
-        fontSize = Math.max(7.5, fontSize - 1.5);
-      }
-
-      const maxLines = item.maxLines || 4;
-      lines.slice(0, maxLines).forEach((lineText, idx) => {
-        page.drawText(lineText, {
-          x: x,
-          y: y - idx * lineHeight,
-          size: fontSize,
-          font: customFont,
-          color: rgb(0, 0, 0),
-        });
-      });
-    } else {
-      // 単行表示だが文字数が長い場合の自動フォント縮小
-      if (!item.fontSize && strVal.length > 15) {
-        fontSize = Math.max(7.5, 10 - Math.floor((strVal.length - 15) / 4));
-      }
-      page.drawText(strVal, { x, y, size: fontSize, font: customFont, color: rgb(0, 0, 0) });
     }
   }
 
-  const resultBytes = await pdfDoc.save();
-  return Buffer.from(resultBytes);
-}
-
-/**
- * 様式第5号（Form 5）生成メイン処理
- */
-export async function generateForm5PDFs(inputText: string): Promise<{ filename: string; buffer: Buffer }[]> {
-  const parsed = parseKeyValueText(inputText);
-  const results: { filename: string; buffer: Buffer }[] = [];
-
-  const zip = splitZipCode(parsed["本人郵便番号(例: 123-4567)"]);
-  const tel = splitTelNumber(parsed["本人電話番号(例: 090-1234-5678)"]);
-  const hospZip = splitZipCode(parsed["診療を受けた病院郵便番号(例: 100-0001)"]);
-  const hospTel = splitTelNumber(parsed["病院電話番号(例: 03-1234-5678)"]);
-
-  const baseData: Record<string, any> = {
-    "Labor_insurance_No.": parsed["労働保険番号(14桁)"] || parsed["労働保険番号"],
-    worker_name: parsed["氏名(漢字)"],
-    sex: parsed["性別(男性は1、女性は3)"],
-    Japanese_era: parsed["生年月日の和暦(昭和5, 平成7, 令和9)"],
-    Date_of_birth: parsed["生年月日(例: 55年5月15日→550515)"],
-    age: parsed["年齢(数字のみ)"],
-    "Claimant's_address": (parsed["住所都道府県"] || "") + (parsed["住所市町村以降"] || ""),
-    zip_first: zip.first,
-    zip_last: zip.last,
-    tel_first: tel.area,
-    tel_middle: tel.city,
-    tel_last: tel.num,
-    Job_type: parsed["職種"],
-    Date_of_injury: parsed["負傷年月日(例: 令和8年8月29日→080829)"],
-    disaster_time_type: parsed["負傷時刻区分(AM または PM)"],
-    disaster_hour: pad2(parsed["負傷時刻(時)"]),
-    disaster_minute: pad2(parsed["負傷時刻(分)"]),
-    accident_detail: parsed["災害の原因と発生状況"],
-    Claim_Hospital_name: parsed["診療を受けた病院名"],
-    Hospital_name: parsed["診療を受けた病院名"],
-    Hospital_Address: parsed["診療を受けた病院住所"],
-    Hospital_zip_first: hospZip.first,
-    Hospital_zip_last: hospZip.last,
-    Hospital_tel_first: hospTel.area,
-    Hospital_tel_middle: hospTel.city,
-    Hospital_tel_last: hospTel.num,
-    Location_and_condition_of_the_injury: parsed["傷病の部位及び状態"],
-  };
-
-  // ① 病院用PDF
-  const hospitalBuffer = await renderSinglePdf("form5", baseData);
-  results.push({ filename: "form5_病院用.pdf", buffer: hospitalBuffer });
-
-  // ② 薬局用PDF
-  if (parsed["調剤を受けた薬局名"]) {
-    const pharmZip = splitZipCode(parsed["薬局の郵便番号(例: 100-0001)"]);
-    const pharmTel = splitTelNumber(parsed["薬局の電話番号(例: 03-1234-5678)"]);
-    const pharmacyData = {
-      ...baseData,
-      Claim_Hospital_name: parsed["調剤を受けた薬局名"],
-      Hospital_name: parsed["調剤を受けた薬局名"],
-      Hospital_Address: parsed["薬局の住所"],
-      Hospital_zip_first: pharmZip.first,
-      Hospital_zip_last: pharmZip.last,
-      Hospital_tel_first: pharmTel.area,
-      Hospital_tel_middle: pharmTel.city,
-      Hospital_tel_last: pharmTel.num,
-    };
-    const pharmacyBuffer = await renderSinglePdf("form5", pharmacyData);
-    results.push({ filename: "form5_薬局用.pdf", buffer: pharmacyBuffer });
-  }
-
-  return results;
-}
-
-/**
- * 様式第6号（Form 6）生成メイン処理
- */
-export async function generateForm6PDFs(
-  form5InputText: string,
-  form6InputText: string
-): Promise<{ filename: string; buffer: Buffer }[]> {
-  const f5Parsed = parseKeyValueText(form5InputText);
-  const f6Parsed = parseKeyValueText(form6InputText);
-  const results: { filename: string; buffer: Buffer }[] = [];
-
-  const initialHospitalName = f5Parsed["診療を受けた病院名"];
-  const claimantAddress = (f5Parsed["住所都道府県"] || "") + (f5Parsed["住所市町村以降"] || "");
-  const zip = splitZipCode(f5Parsed["本人郵便番号(例: 123-4567)"]);
-  const tel = splitTelNumber(f5Parsed["本人電話番号(例: 090-1234-5678)"]);
-
-  const commonBase = {
-    "Labor_insurance_No.": f5Parsed["労働保険番号(14桁)"] || f5Parsed["労働保険番号"],
-    worker_name: f5Parsed["氏名(漢字)"],
-    Name_of_the_person_filing_the_notification: f5Parsed["氏名(漢字)"],
-    Address_of_the_person_filing_the_notification: claimantAddress,
-    "Claimant's_address": claimantAddress,
-    zip_first: zip.first,
-    zip_last: zip.last,
-    tel_first: tel.area,
-    tel_middle: tel.city,
-    tel_last: tel.num,
-    sex: f5Parsed["性別(男性は1、女性は3)"],
-    Date_of_birth: f5Parsed["生年月日(例: 55年5月15日→550515)"],
-    Japanese_era: f5Parsed["生年月日の和暦(昭和5, 平成7, 令和9)"],
-    age: f5Parsed["年齢(数字のみ)"],
-    Job_type: f5Parsed["職種"],
-    Date_of_injury: f5Parsed["負傷年月日(例: 令和8年8月29日→080829)"],
-    disaster_time_type: f5Parsed["負傷時刻区分(AM または PM)"],
-    disaster_hour: pad2(f5Parsed["負傷時刻(時)"]),
-    disaster_minute: pad2(f5Parsed["負傷時刻(分)"]),
-    accident_detail: f5Parsed["災害の原因と発生状況"],
-    Pension_certificate_jurisdiction: f6Parsed["年金証書番号(管轄局・最初の2桁)"],
-    Pension_certificate_type: f6Parsed["年金証書番号(種別・3桁目)"],
-    "Pension certificate number": f6Parsed["年金証書番号(4桁目以降)"],
-  };
-
-  // ① 1回目の転院PDF
-  if (f6Parsed["1回目の転院先病院名"]) {
-    const transfer1Zip = splitZipCode(f6Parsed["1回目の病院の郵便番号(例: 123-4567)"]);
-    const form6_1_Data = {
-      ...commonBase,
-      Claim_Hospital_name: initialHospitalName,
-      Hospital_after_transfer: f6Parsed["1回目の転院先病院名"],
-      Address_of_the_hospital_after_transfer: f6Parsed["1回目の病院の住所"],
-      Postal_code_first_of_the_hospital_after_transfer: transfer1Zip.first,
-      Postal_code_last_of_the_hospital_after_transfer: transfer1Zip.last,
-      Reason_for_transfer_to_another_hospital: f6Parsed["1回目の転院理由(例: 精密検査・手術入院加療のため、自宅近くで通院するため 等)"],
-    };
-    const buffer1 = await renderSinglePdf("form6", form6_1_Data);
-    results.push({ filename: "form6_1回目の転院.pdf", buffer: buffer1 });
-  }
-
-  // ② 2回目の転院PDF
-  if (f6Parsed["2回目の転院先病院名"]) {
-    const transfer2Zip = splitZipCode(f6Parsed["2回目の病院の郵便番号(例: 123-4567)"]);
-    const form6_2_Data = {
-      ...commonBase,
-      Claim_Hospital_name: f6Parsed["1回目の転院先病院名"],
-      Hospital_after_transfer: f6Parsed["2回目の転院先病院名"],
-      Address_of_the_hospital_after_transfer: f6Parsed["2回目の病院の住所"] || f6Parsed["2回目の転院先病院名"],
-      Postal_code_first_of_the_hospital_after_transfer: transfer2Zip.first,
-      Postal_code_last_of_the_hospital_after_transfer: transfer2Zip.last,
-      Reason_for_transfer_to_another_hospital: f6Parsed["2回目の転院理由(例: 退院後、自宅近くでリハビリ通院を行うため 等)"],
-    };
-    const buffer2 = await renderSinglePdf("form6", form6_2_Data);
-    results.push({ filename: "form6_2回目の転院.pdf", buffer: buffer2 });
-  }
-
-  return results;
+  return await pdfDoc.save();
 }
