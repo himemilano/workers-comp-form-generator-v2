@@ -177,7 +177,15 @@ router.post("/generate-pdf", async (req: Request, res: Response) => {
     const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
     pdfDoc.registerFontkit(fontkit);
 
-    const fontPath = path.resolve(__dirname, "../fonts/IPAexGothic.ttf");
+    const fontCandidates = [
+  path.resolve(__dirname, "../fonts/IPAexGothic.ttf"),
+  path.resolve(__dirname, "../../src/fonts/IPAexGothic.ttf"),
+  path.resolve(process.cwd(), "src/fonts/IPAexGothic.ttf"),
+  path.resolve(process.cwd(), "backend/src/fonts/IPAexGothic.ttf"),
+  path.resolve(process.cwd(), "dist/fonts/IPAexGothic.ttf"),
+  path.resolve(process.cwd(), "fonts/IPAexGothic.ttf"),
+];
+const fontPath = fontCandidates.find((p) => fs.existsSync(p)) || fontCandidates[0];
     const customFont = await pdfDoc.embedFont(fs.readFileSync(fontPath));
 
     for (const pageConfig of form5Config.pages) {
