@@ -308,10 +308,24 @@ export async function renderPdfForm(
  * 様式第5号 PDF生成 (配列形式で返却)
  */
 export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
-  const rawInput = typeof inputText === 'string' ? JSON.parse(inputText) : inputText;
+  let rawInput: Record<string, any>;
+
+  if (typeof inputText === 'string') {
+    try {
+      // マークダウン記法 (```json ... ```) が含まれている場合は除去してパース
+      const cleanedText = inputText.replace(/```json\s?|\s?```/g, '').trim();
+      rawInput = JSON.parse(cleanedText);
+    } catch (e) {
+      throw new Error("入力テキストが有効なJSONフォーマットではありません。キーと値のオブジェクト形式で送信してください。");
+    }
+  } else if (typeof inputText === 'object' && inputText !== null) {
+    rawInput = inputText;
+  } else {
+    throw new Error("入力データが無効です。");
+  }
+
   const processedData = processForm5Data(rawInput);
 
-  // テンプレート・フォント・スキーマファイルの読み込みパスを設定（プロジェクト構造に合わせて要調整）
   const templatePath = path.resolve(__dirname, '../assets/form5_template.pdf');
   const fontPath = path.resolve(__dirname, '../assets/font.ttf');
   const schemaPath = path.resolve(__dirname, '../assets/form5_schema.json');
@@ -336,13 +350,23 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
  * 様式第6号 PDF生成 (配列形式で返却)
  */
 export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
-  const f5Input = typeof f5InputText === 'string' ? JSON.parse(f5InputText) : f5InputText;
-  const f6Input = typeof f6InputText === 'string' ? JSON.parse(f6InputText) : f6InputText;
+  let f5Input: Record<string, any>;
+  let f6Input: Record<string, any>;
+
+  try {
+    f5Input = typeof f5InputText === 'string' 
+      ? JSON.parse(f5InputText.replace(/```json\s?|\s?```/g, '').trim()) 
+      : f5InputText;
+    f6Input = typeof f6InputText === 'string' 
+      ? JSON.parse(f6InputText.replace(/```json\s?|\s?```/g, '').trim()) 
+      : f6InputText;
+  } catch (e) {
+    throw new Error("Form5またはForm6の入力テキストが有効なJSONフォーマットではありません。");
+  }
 
   const f5Processed = processForm5Data(f5Input);
   const processedData = processForm6DataFromForm5(f5Processed, f6Input);
 
-  // テンプレート・フォント・スキーマファイルの読み込みパスを設定（プロジェクト構造に合わせて要調整）
   const templatePath = path.resolve(__dirname, '../assets/form6_template.pdf');
   const fontPath = path.resolve(__dirname, '../assets/font.ttf');
   const schemaPath = path.resolve(__dirname, '../assets/form6_schema.json');
