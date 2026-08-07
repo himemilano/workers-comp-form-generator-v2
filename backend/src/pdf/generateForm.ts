@@ -39,8 +39,10 @@ interface FieldRenderRule {
   pitch?: number;               // マス目印字の文字ピッチ (px/pt)
   maxCharsPerLine?: number;     // 1行あたりの折り返し最大文字数
   lineHeight?: number;          // 改行時の行高
+  extraLineSpacing?: number;    // 2行目以降の追加下方向オフセット (px/pt)
   maxLines?: number;            // 最大行数
   cleanFacilitySuffix?: boolean;// 末尾の「病院」「薬局」等を削除するか
+  isCircleMark?: boolean;       // 「有」「無」の選択項目で「〇」を印字するか
 }
 
 const DEFAULT_FONT_SIZE = 10; // Job_typeと同等の標準フォントサイズ
@@ -64,14 +66,15 @@ const FIELD_RULES: Record<string, FieldRenderRule> = {
   'claimant_zip_first': { renderType: 'grid', pitch: 10.2, fontSize: 9 },
   'claimant_zip_last': { renderType: 'grid', pitch: 10.2, fontSize: 9 },
 
-  // --- 3. 長文項目（47文字枠いっぱいに折り返し） ---
-  'accident_detail': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, maxLines: 4, fontSize: 9.5 },
-  'Reason_for_transfer_to_another_hospital': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, maxLines: 4, fontSize: 9.5 },
+  // --- 3. 長文項目（47文字枠いっぱいに折り返し＋2行目以降を0.8文字分＝7.6pt下にずらす） ---
+  'accident_detail': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, extraLineSpacing: 7.6, maxLines: 4, fontSize: 9.5 },
+  'Reason_for_transfer_to_another_hospital': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, extraLineSpacing: 7.6, maxLines: 4, fontSize: 9.5 },
 
   // --- 4. 施設名（病院名・薬局名） ---
-  'Claim_Hospital_name': { renderType: 'multi', maxCharsPerLine: 16, lineHeight: 12, maxLines: 2, fontSize: 10, cleanFacilitySuffix: true },
-  'Hospital_name': { renderType: 'multi', maxCharsPerLine: 18, lineHeight: 12, maxLines: 2, fontSize: 10 },
-  'Hospital_after_transfer': { renderType: 'multi', maxCharsPerLine: 18, lineHeight: 12, maxLines: 2, fontSize: 10 },
+  // 「病院」のカット処理を解除し、枠に収まるよう12文字で折り返し
+  'Claim_Hospital_name': { renderType: 'multi', maxCharsPerLine: 12, lineHeight: 11, maxLines: 2, fontSize: 9.5, cleanFacilitySuffix: false },
+  'Hospital_name': { renderType: 'multi', maxCharsPerLine: 14, lineHeight: 11, maxLines: 2, fontSize: 9.5, cleanFacilitySuffix: false },
+  'Hospital_after_transfer': { renderType: 'multi', maxCharsPerLine: 14, lineHeight: 11, maxLines: 2, fontSize: 9.5, cleanFacilitySuffix: false },
 
   // --- 5. 住所項目 ---
   "Claimant's_address": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
@@ -79,8 +82,23 @@ const FIELD_RULES: Record<string, FieldRenderRule> = {
   "Address_of_the_hospital_after_transfer": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
   "worker_address": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
 
-  // --- 6. 単一行基本項目（自由入力） ---
+  // --- 6. 電話番号項目（崩れを防ぐため単一行自由印字） ---
+  'phone_number': { renderType: 'single', fontSize: 10 },
+  'company_phone': { renderType: 'single', fontSize: 10 },
+  'tel_number': { renderType: 'single', fontSize: 10 },
+  'business_phone': { renderType: 'single', fontSize: 10 },
+  'claimant_phone': { renderType: 'single', fontSize: 10 },
+  'Claimant_phone': { renderType: 'single', fontSize: 10 },
+
+  // --- 7. 有無・フラグ項目（「有」を「〇」に変換して印字） ---
+  'existence_flag': { renderType: 'single', fontSize: 12, isCircleMark: true },
+  'has_third_party': { renderType: 'single', fontSize: 12, isCircleMark: true },
+  'page2_yes_no': { renderType: 'single', fontSize: 12, isCircleMark: true },
+
+  // --- 8. 単一行基本項目 ---
   'worker_name': { renderType: 'single', fontSize: 10 },
+  'claimant_name': { renderType: 'single', fontSize: 10 },
+  'Claimant_Name': { renderType: 'single', fontSize: 10 },
   'Job_type': { renderType: 'single', fontSize: 10 },
 };
 
@@ -139,7 +157,7 @@ function loadSchemaFile(formNum: string): FormSchema {
 }
 
 /**
- * 病院・薬局名から「病院」「診療所」「薬局」等の被り文字を除去
+ * 病院・薬局名から「病院」「診療所」「薬局」等の被り文字を除去（設定時のみ）
  */
 function cleanFacilityName(name: string): string {
   if (!name) return "";
@@ -219,7 +237,8 @@ function drawMultiLineText(
   maxCharsPerLine: number,
   maxLines: number,
   font: PDFFont,
-  fontSize: number
+  fontSize: number,
+  extraLineSpacing: number = 0
 ) {
   if (!text) return;
   const lines: string[] = [];
@@ -241,9 +260,11 @@ function drawMultiLineText(
 
   const targetLines = lines.slice(0, maxLines);
   targetLines.forEach((line, idx) => {
+    // idx > 0 (2行目以降) の場合に extraLineSpacing 分だけ追加で下方向（Yを引く）にずらす
+    const lineY = startY - idx * lineHeight - (idx * extraLineSpacing);
     page.drawText(line, {
       x: x,
-      y: startY - idx * lineHeight,
+      y: lineY,
       size: fontSize,
       font: font,
       color: rgb(0, 0, 0),
@@ -261,8 +282,6 @@ export async function renderPdfForm(
   pdfDoc.registerFontkit(fontkit);
   const customFont = await pdfDoc.embedFont(fontBytes);
 
-  const isForm5 = schema.form === '5';
-
   for (const pageSchema of schema.pages) {
     const pageIndex = pageSchema.page - 1;
     if (pageIndex >= pdfDoc.getPageCount()) continue;
@@ -272,9 +291,10 @@ export async function renderPdfForm(
     for (const field of pageSchema.fields) {
       let val = formData[field.id];
 
-      // Form5 データ補完（※ Labor_insurance_No. に特別加入番号を混ぜないよう厳密分離）
+      // Form5 データ補完（※ 労働者氏名と請求人氏名の重複二重印字を防止）
       if (val === undefined || val === null || val === '') {
-        if (field.id === 'worker_name') val = formData['氏名(漢字)'] || formData['氏名'] || formData['労働者氏名'];
+        if (field.id === 'worker_name') val = formData['労働者氏名'] || formData['氏名(漢字)'];
+        else if (field.id === 'claimant_name' || field.id === 'Claimant_Name') val = formData['請求人氏名'] || formData['請求者氏名'];
         else if (field.id === 'Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'];
         else if (field.id === 'Claim_Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'] || formData['薬局名'];
         else if (field.id === 'Labor_insurance_No.') val = formData['労働保険番号'];
@@ -291,7 +311,14 @@ export async function renderPdfForm(
       const fontSize = rule.fontSize || field.fontSize || DEFAULT_FONT_SIZE;
       const renderType = rule.renderType || 'single';
 
-      // 施設名の末尾トリム
+      // 「有」などのテキストを「〇」記号に変換
+      if (strVal === '有' || strVal === 'あり' || rule.isCircleMark) {
+        if (strVal === '有' || strVal === 'あり' || strVal === '1' || strVal === 'true') {
+          strVal = '〇';
+        }
+      }
+
+      // 施設名の末尾トリム（設定時のみ）
       if (rule.cleanFacilitySuffix) {
         strVal = cleanFacilityName(strVal);
       }
@@ -308,8 +335,9 @@ export async function renderPdfForm(
       } else if (renderType === 'multi') {
         const maxCharsPerLine = rule.maxCharsPerLine || 20;
         const lineHeight = rule.lineHeight || 12;
+        const extraLineSpacing = rule.extraLineSpacing || 0;
         const maxLines = rule.maxLines || 2;
-        drawMultiLineText(page, strVal, field.x, field.y, lineHeight, maxCharsPerLine, maxLines, customFont, fontSize);
+        drawMultiLineText(page, strVal, field.x, field.y, lineHeight, maxCharsPerLine, maxLines, customFont, fontSize, extraLineSpacing);
       } else {
         // 単一行印字
         page.drawText(strVal, {
