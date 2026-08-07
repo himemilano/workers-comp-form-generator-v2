@@ -30,6 +30,60 @@ export interface PDFResult {
   buffer: Buffer;
 }
 
+/**
+ * 各印字項目（field.id）ごとの個別の印字ルール定義
+ */
+interface FieldRenderRule {
+  fontSize?: number;
+  renderType?: 'single' | 'multi' | 'grid';
+  pitch?: number;               // マス目印字の文字ピッチ (px/pt)
+  maxCharsPerLine?: number;     // 1行あたりの折り返し最大文字数
+  lineHeight?: number;          // 改行時の行高
+  maxLines?: number;            // 最大行数
+  cleanFacilitySuffix?: boolean;// 末尾の「病院」「薬局」等を削除するか
+}
+
+const DEFAULT_FONT_SIZE = 10; // Job_typeと同等の標準フォントサイズ
+
+const FIELD_RULES: Record<string, FieldRenderRule> = {
+  // --- 1. 労働保険番号・特別加入番号（混同防止） ---
+  'Labor_insurance_No.': { renderType: 'grid', pitch: 14.1, fontSize: 10 },
+  'Special_Labor_insurance_No.': { renderType: 'single', fontSize: 10 },
+  'special_insurance_no': { renderType: 'single', fontSize: 10 },
+
+  // --- 2. マス目（Grid）印字項目 ---
+  'Name_in_Katakana': { renderType: 'grid', pitch: 13.5, fontSize: 11 },
+  'date_of_birth': { renderType: 'grid', pitch: 14.1, fontSize: 10 },
+  'Date_of_injury': { renderType: 'grid', pitch: 14.1, fontSize: 10 },
+
+  // 標準サイズの郵便番号マス目
+  'zip_first': { renderType: 'grid', pitch: 12.0, fontSize: 10 },
+  'zip_last': { renderType: 'grid', pitch: 12.0, fontSize: 10 },
+
+  // Form5 本人郵便番号：マス目が一回り小さいため専用ピッチ（10.2pt）と小さめフォント（9pt）を適用
+  'claimant_zip_first': { renderType: 'grid', pitch: 10.2, fontSize: 9 },
+  'claimant_zip_last': { renderType: 'grid', pitch: 10.2, fontSize: 9 },
+
+  // --- 3. 長文項目（47文字枠いっぱいに折り返し） ---
+  'accident_detail': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, maxLines: 4, fontSize: 9.5 },
+  'Reason_for_transfer_to_another_hospital': { renderType: 'multi', maxCharsPerLine: 47, lineHeight: 12, maxLines: 4, fontSize: 9.5 },
+
+  // --- 4. 施設名（病院名・薬局名） ---
+  'Claim_Hospital_name': { renderType: 'multi', maxCharsPerLine: 16, lineHeight: 12, maxLines: 2, fontSize: 10, cleanFacilitySuffix: true },
+  'Hospital_name': { renderType: 'multi', maxCharsPerLine: 18, lineHeight: 12, maxLines: 2, fontSize: 10 },
+  'Hospital_after_transfer': { renderType: 'multi', maxCharsPerLine: 18, lineHeight: 12, maxLines: 2, fontSize: 10 },
+
+  // --- 5. 住所項目 ---
+  "Claimant's_address": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
+  "Hospital_Address": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
+  "Address_of_the_hospital_after_transfer": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
+  "worker_address": { renderType: 'multi', maxCharsPerLine: 26, lineHeight: 11, maxLines: 2, fontSize: 10 },
+
+  // --- 6. 単一行基本項目（自由入力） ---
+  'worker_name': { renderType: 'single', fontSize: 10 },
+  'Job_type': { renderType: 'single', fontSize: 10 },
+};
+
 function loadAssetFile(relativePath: string): Buffer {
   const possiblePaths = [
     path.resolve(process.cwd(), relativePath),
@@ -82,6 +136,14 @@ function loadSchemaFile(formNum: string): FormSchema {
     } catch (e) {}
   }
   throw new Error(`様式第${formNum}号のスキーマJSONが見つかりません。`);
+}
+
+/**
+ * 病院・薬局名から「病院」「診療所」「薬局」等の被り文字を除去
+ */
+function cleanFacilityName(name: string): string {
+  if (!name) return "";
+  return name.replace(/(病院|診療所|薬局|訪問看護事業者|訪問看護ステーション)$/g, "").trim();
 }
 
 function parseInputText(inputText: any): Record<string, string> {
@@ -148,9 +210,6 @@ function drawSpacedText(
   });
 }
 
-/**
- * テキストの折り返し自動改行描画（病院名や長文用）
- */
 function drawMultiLineText(
   page: any,
   text: string,
@@ -213,52 +272,46 @@ export async function renderPdfForm(
     for (const field of pageSchema.fields) {
       let val = formData[field.id];
 
-      // Form5 のデータフォールバック補完（白紙防止）
+      // Form5 データ補完（※ Labor_insurance_No. に特別加入番号を混ぜないよう厳密分離）
       if (val === undefined || val === null || val === '') {
         if (field.id === 'worker_name') val = formData['氏名(漢字)'] || formData['氏名'] || formData['労働者氏名'];
         else if (field.id === 'Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'];
         else if (field.id === 'Claim_Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'] || formData['薬局名'];
-        else if (field.id === 'Labor_insurance_No.') val = formData['特別加入の労働保険番号'] || formData['労働保険番号'];
+        else if (field.id === 'Labor_insurance_No.') val = formData['労働保険番号'];
+        else if (field.id === 'Special_Labor_insurance_No.' || field.id === 'special_insurance_no') val = formData['特別加入の労働保険番号'];
         else if (field.id === 'accident_detail') val = formData['災害の原因と発生状況'] || formData['災害の原因及び発生状況'];
       }
 
       if (val === undefined || val === null || val === '') continue;
 
-      const strVal = String(val);
-      const fontSize = field.fontSize || 9;
+      let strVal = String(val);
 
-      // 1. 特殊ピッチマス目印字
-      if (isForm5 && field.id === 'Labor_insurance_No.') {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
-      } else if (isForm5 && (field.id === 'date_of_birth' || field.id === 'Date_of_injury')) {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 6);
-      } else if (isForm5 && field.id === 'Name_in_Katakana') {
-        const kanaChars = normalizeKatakana(strVal);
-        drawSpacedText(page, kanaChars.join(''), field.x, field.y, 13.5, customFont, fontSize, 16);
-      } else if (isForm5 && (field.id === 'zip_first' || field.id === 'claimant_zip_first')) {
-        drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 3);
-      } else if (isForm5 && (field.id === 'zip_last' || field.id === 'claimant_zip_last')) {
-        drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
-      } 
-      
-      // 2. 病院名・住所・長文の自動「折り返し処理」（改行描画）
-      else if (
-        field.id === 'Claim_Hospital_name' ||
-        field.id === 'Hospital_name' ||
-        field.id === 'Hospital_after_transfer'
-      ) {
-        // 病院名は横幅に応じて2行に折り返し（フォントサイズ8pt、行間10pt、半角/全角考慮で11文字折り返し）
-        drawMultiLineText(page, strVal, field.x, field.y, 10, 11, 2, customFont, 8);
-      } else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
-        drawMultiLineText(page, strVal, field.x, field.y, 13, 26, 4, customFont, 8);
-      } else if (field.id === "Claimant's_address" || field.id === "Address_of_the_hospital_after_transfer" || field.id === "Hospital_Address") {
-        drawMultiLineText(page, strVal, field.x, field.y, 10, 16, 2, customFont, 8);
-      } else if (!isForm5 && field.id === 'worker_name') {
-        drawMultiLineText(page, strVal, field.x, field.y, 10, 10, 2, customFont, 8);
-      } 
-      
-      // 3. 通常文字描画
-      else {
+      // 個別ルール（FIELD_RULES）の取得
+      const rule = FIELD_RULES[field.id] || {};
+      const fontSize = rule.fontSize || field.fontSize || DEFAULT_FONT_SIZE;
+      const renderType = rule.renderType || 'single';
+
+      // 施設名の末尾トリム
+      if (rule.cleanFacilitySuffix) {
+        strVal = cleanFacilityName(strVal);
+      }
+
+      // --- 印字タイプ別振り分け ---
+      if (renderType === 'grid') {
+        const pitch = rule.pitch || 14.1;
+        if (field.id === 'Name_in_Katakana') {
+          const kanaChars = normalizeKatakana(strVal);
+          drawSpacedText(page, kanaChars.join(''), field.x, field.y, pitch, customFont, fontSize, 16);
+        } else {
+          drawSpacedText(page, strVal, field.x, field.y, pitch, customFont, fontSize);
+        }
+      } else if (renderType === 'multi') {
+        const maxCharsPerLine = rule.maxCharsPerLine || 20;
+        const lineHeight = rule.lineHeight || 12;
+        const maxLines = rule.maxLines || 2;
+        drawMultiLineText(page, strVal, field.x, field.y, lineHeight, maxCharsPerLine, maxLines, customFont, fontSize);
+      } else {
+        // 単一行印字
         page.drawText(strVal, {
           x: field.x,
           y: field.y,
@@ -333,7 +386,6 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
 
   const results: PDFResult[] = [];
 
-  // --- 転院1回目 ---
   if (transfer1.name) {
     const data1 = {
       ...parsedF5,
@@ -356,7 +408,6 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
     });
   }
 
-  // --- 転院2回目 ---
   if (transfer2.name) {
     const data2 = {
       ...parsedF5,
