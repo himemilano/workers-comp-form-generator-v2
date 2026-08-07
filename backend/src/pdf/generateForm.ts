@@ -111,43 +111,7 @@ function parseInputText(inputText: any): Record<string, string> {
     }
   }
 
-  const findValue = (...keys: string[]) => {
-    for (const k of keys) {
-      if (parsed[k]) return parsed[k];
-    }
-    return '';
-  };
-
-  const normalized: Record<string, string> = { ...parsed };
-
-  normalized['本人郵便番号(例: 123-4567)'] = findValue('本人郵便番号(例: 123-4567)', '本人郵便番号', '郵便番号', 'zip');
-  normalized['診療を受けた病院郵便番号(例: 100-0001)'] = findValue('診療を受けた病院郵便番号(例: 100-0001)', '病院郵便番号', '診療を受けた病院郵便番号');
-  normalized['本人電話番号(例: 090-1234-5678)'] = findValue('本人電話番号(例: 090-1234-5678)', '本人電話番号', '電話番号', 'tel');
-  normalized['病院電話番号(例: 03-1234-5678)'] = findValue('病院電話番号(例: 03-1234-5678)', '病院電話番号');
-  normalized['生年月日(例: 55年5月15日→550515)'] = findValue('生年月日(例: 55年5月15日→550515)', '生年月日', 'date_of_birth');
-  normalized['負傷年月日(例: 令和8年8月29日→080829)'] = findValue('負傷年月日(例: 令和8年8月29日→080829)', '負傷年月日', 'Date_of_injury');
-  normalized['記入日(例: 令和8年8月30日)'] = findValue('記入日(例: 令和8年8月30日)', '記入日', '日付');
-  normalized['負傷時刻区分(AM または PM)'] = findValue('負傷時刻区分(AM または PM)', '負傷時刻区分', 'AM/PM');
-  normalized['負傷時刻(時)'] = findValue('負傷時刻(時)', '負傷時刻時', '時');
-  normalized['負傷時刻(分)'] = findValue('負傷時刻(分)', '負傷時刻分', '分');
-  normalized['特別加入の労働保険番号'] = findValue('特別加入の労働保険番号', '労働保険番号', 'Labor_insurance_No.');
-  normalized['診療を受けた病院名'] = findValue('診療を受けた病院名', '病院名', 'Hospital_name');
-  normalized['住所都道府県'] = findValue('住所都道府県', '都道府県');
-  normalized['住所市町村以降'] = findValue('住所市町村以降', '市区町村以降', '住所');
-  normalized['氏名(漢字)'] = findValue('氏名(漢字)', '氏名', '労働者氏名', 'worker_name');
-  normalized['性別(男性は1、女性は3)'] = findValue('性別(男性は1、女性は3)', '性別', 'sex');
-  normalized['生年月日の和暦(昭和5, 平成7, 令和9)'] = findValue('生年月日の和暦(昭和5, 平成7, 令和9)', '生年月日和暦');
-  normalized['氏名フリガナ(全角カタカナ・姓と名の間にスペース)'] = findValue('氏名フリガナ(全角カタカナ・姓と名の間にスペース)', '氏名フリガナ', 'フリガナ');
-  normalized['年齢(数字のみ)'] = findValue('年齢(数字のみ)', '年齢', 'age');
-  normalized['住所都道府県フリガナ'] = findValue('住所都道府県フリガナ', '都道府県フリガナ');
-  normalized['住所市町村以降フリガナ'] = findValue('住所市町村以降フリガナ', '市区町村以降フリガナ');
-  normalized['職種'] = findValue('職種', 'Job_type');
-  normalized['災害の原因と発生状況'] = findValue('災害の原因と発生状況', '災害の原因及び発生状況', 'accident_detail');
-  normalized['診療を受けた病院住所'] = findValue('診療を受けた病院住所', '病院住所');
-  normalized['傷病の部位及び状態'] = findValue('傷病の部位及び状態', '傷病部位');
-  normalized['その会社の電話番号'] = findValue('その会社の電話番号', '所属会社電話番号', '本人所属会社電話番号');
-
-  return normalized;
+  return parsed;
 }
 
 function normalizeKatakana(str: string): string[] {
@@ -184,6 +148,9 @@ function drawSpacedText(
   });
 }
 
+/**
+ * テキストの折り返し自動改行描画（病院名や長文用）
+ */
 function drawMultiLineText(
   page: any,
   text: string,
@@ -244,12 +211,23 @@ export async function renderPdfForm(
     const page = pdfDoc.getPage(pageIndex);
 
     for (const field of pageSchema.fields) {
-      const val = formData[field.id];
+      let val = formData[field.id];
+
+      // Form5 のデータフォールバック補完（白紙防止）
+      if (val === undefined || val === null || val === '') {
+        if (field.id === 'worker_name') val = formData['氏名(漢字)'] || formData['氏名'] || formData['労働者氏名'];
+        else if (field.id === 'Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'];
+        else if (field.id === 'Claim_Hospital_name') val = formData['診療を受けた病院名'] || formData['病院名'] || formData['薬局名'];
+        else if (field.id === 'Labor_insurance_No.') val = formData['特別加入の労働保険番号'] || formData['労働保険番号'];
+        else if (field.id === 'accident_detail') val = formData['災害の原因と発生状況'] || formData['災害の原因及び発生状況'];
+      }
+
       if (val === undefined || val === null || val === '') continue;
 
       const strVal = String(val);
-      const fontSize = field.fontSize || 10;
+      const fontSize = field.fontSize || 9;
 
+      // 1. 特殊ピッチマス目印字
       if (isForm5 && field.id === 'Labor_insurance_No.') {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
       } else if (isForm5 && (field.id === 'date_of_birth' || field.id === 'Date_of_injury')) {
@@ -261,15 +239,26 @@ export async function renderPdfForm(
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 3);
       } else if (isForm5 && (field.id === 'zip_last' || field.id === 'claimant_zip_last')) {
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
+      } 
+      
+      // 2. 病院名・住所・長文の自動「折り返し処理」（改行描画）
+      else if (
+        field.id === 'Claim_Hospital_name' ||
+        field.id === 'Hospital_name' ||
+        field.id === 'Hospital_after_transfer'
+      ) {
+        // 病院名は横幅に応じて2行に折り返し（フォントサイズ8pt、行間10pt、半角/全角考慮で11文字折り返し）
+        drawMultiLineText(page, strVal, field.x, field.y, 10, 11, 2, customFont, 8);
       } else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
-        drawMultiLineText(page, strVal, field.x, field.y, 14, 28, 4, customFont, fontSize);
-      } else if (field.id === 'Claim_Hospital_name') {
-        drawMultiLineText(page, strVal, field.x, field.y, 11, 12, 2, customFont, 8);
-      } else if (field.id === "Claimant's_address") {
-        drawMultiLineText(page, strVal, field.x, field.y, 11, 18, 2, customFont, 8);
+        drawMultiLineText(page, strVal, field.x, field.y, 13, 26, 4, customFont, 8);
+      } else if (field.id === "Claimant's_address" || field.id === "Address_of_the_hospital_after_transfer" || field.id === "Hospital_Address") {
+        drawMultiLineText(page, strVal, field.x, field.y, 10, 16, 2, customFont, 8);
       } else if (!isForm5 && field.id === 'worker_name') {
-        drawMultiLineText(page, strVal, field.x, field.y, 11, 10, 2, customFont, 8);
-      } else {
+        drawMultiLineText(page, strVal, field.x, field.y, 10, 10, 2, customFont, 8);
+      } 
+      
+      // 3. 通常文字描画
+      else {
         page.drawText(strVal, {
           x: field.x,
           y: field.y,
@@ -285,11 +274,12 @@ export async function renderPdfForm(
 }
 
 /**
- * 様式第5号 生成API用
+ * 様式第5号 生成API
  */
 export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
   const parsedInput = parseInputText(inputText);
   const mappedData = buildForm5Data(parsedInput, false);
+  const combinedData = { ...parsedInput, ...mappedData };
 
   const templatePdfBytes = loadTemplatePdf('form5.pdf');
   const fontBytes = loadFontFile();
@@ -303,7 +293,7 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
   const results: PDFResult[] = [];
 
   for (const target of targets) {
-    const currentData = { ...mappedData };
+    const currentData = { ...combinedData };
 
     if (target.type === 'pharmacy') {
       const pharmacyName = parsedInput['薬局名'] || parsedInput['指定薬局名称'] || '';
@@ -323,7 +313,7 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
 }
 
 /**
- * 様式第6号 生成API用
+ * 様式第6号 生成API
  */
 export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
   const parsedF5 = parseInputText(f5InputText);
@@ -343,15 +333,15 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
 
   const results: PDFResult[] = [];
 
+  // --- 転院1回目 ---
   if (transfer1.name) {
     const data1 = {
+      ...parsedF5,
       ...f5Mapped,
+      ...parsedF6,
       ...baseData,
-      "Claim_Hospital_name": transfer1.name,
-      "Hospital_name": f5Mapped["Hospital_name"] || "",
-      "Hospital_Address": f5Mapped["Hospital_Address"] || "",
-      "Hospital_zip_first": f5Mapped["Hospital_zip_first"] || "",
-      "Hospital_zip_last": f5Mapped["Hospital_zip_last"] || "",
+      "Hospital_name": f5Mapped["Hospital_name"] || parsedF5['診療を受けた病院名'] || "",
+      "Hospital_Address": f5Mapped["Hospital_Address"] || parsedF5['診療を受けた病院住所'] || "",
       "Hospital_after_transfer": transfer1.name,
       "Address_of_the_hospital_after_transfer": transfer1.address,
       "Postal_code_first_of_the_hospital_after_transfer": transfer1.zip?.first || "",
@@ -366,15 +356,15 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
     });
   }
 
+  // --- 転院2回目 ---
   if (transfer2.name) {
     const data2 = {
+      ...parsedF5,
       ...f5Mapped,
+      ...parsedF6,
       ...baseData,
-      "Claim_Hospital_name": transfer2.name,
       "Hospital_name": transfer1.name,
       "Hospital_Address": transfer1.address,
-      "Hospital_zip_first": transfer1.zip?.first || "",
-      "Hospital_zip_last": transfer1.zip?.last || "",
       "Hospital_after_transfer": transfer2.name,
       "Address_of_the_hospital_after_transfer": transfer2.address,
       "Postal_code_first_of_the_hospital_after_transfer": transfer2.zip?.first || "",

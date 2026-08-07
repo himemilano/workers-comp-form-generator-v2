@@ -30,6 +30,36 @@ export function downloadMultiplePdfsFromBase64(files: { filename: string; base64
 }
 
 /**
+ * 様式第5号のPDF生成APIを呼び出し、取得した全PDFを連続ダウンロードする関数
+ */
+export async function generateAndDownloadForm5(inputText: string): Promise<void> {
+  try {
+    const response = await fetch("/api/pdf/form5", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputText }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "様式5号のPDF生成に失敗しました。");
+    }
+
+    if (data.files && Array.isArray(data.files)) {
+      downloadMultiplePdfsFromBase64(data.files);
+    } else {
+      throw new Error("生成されたPDFデータが正しく受け取れませんでした。");
+    }
+  } catch (error) {
+    console.error("様式5号 PDF生成・ダウンロードエラー:", error);
+    alert(error instanceof Error ? error.message : "予期せぬエラーが発生しました。");
+  }
+}
+
+/**
  * 様式第6号のPDF生成APIを呼び出し、取得した全PDFを連続ダウンロードする関数
  */
 export async function generateAndDownloadForm6(form5InputText: string, form6InputText: string): Promise<void> {
@@ -45,7 +75,7 @@ export async function generateAndDownloadForm6(form5InputText: string, form6Inpu
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      throw new Error(data.error || "PDF生成に失敗しました。");
+      throw new Error(data.error || "様式6号のPDF生成に失敗しました。");
     }
 
     if (data.files && Array.isArray(data.files)) {
@@ -54,7 +84,7 @@ export async function generateAndDownloadForm6(form5InputText: string, form6Inpu
       throw new Error("生成されたPDFデータが正しく受け取れませんでした。");
     }
   } catch (error) {
-    console.error("PDF生成・ダウンロードエラー:", error);
+    console.error("様式6号 PDF生成・ダウンロードエラー:", error);
     alert(error instanceof Error ? error.message : "予期せぬエラーが発生しました。");
   }
 }
