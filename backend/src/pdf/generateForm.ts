@@ -3,11 +3,9 @@ import fontkit from '@pdf-lib/fontkit';
 import fs from 'fs';
 import path from 'path';
 
-// --- ルール / マッパーのインポート ---
 import { buildForm5Data } from '../rules/mappers/form5Mapper';
 import * as form6Mapper from '../rules/mappers/form6Mapper';
 
-// --- 型定義 ---
 export interface FieldSchema {
   id: string;
   page: number;
@@ -31,8 +29,6 @@ export interface PDFResult {
   filename: string;
   buffer: Buffer;
 }
-
-// --- アセット（PDF・フォント・JSON）の読み込み ---
 
 function loadAssetFile(relativePath: string): Buffer {
   const possiblePaths = [
@@ -88,10 +84,7 @@ function loadSchemaFile(formNum: string): FormSchema {
   throw new Error(`様式第${formNum}号のスキーマJSONが見つかりません。`);
 }
 
-// --- 入力テキスト自動パース処理 (デバッグログ付き) ---
-
 function parseInputText(inputText: any): Record<string, string> {
-  console.log("--- [parseInputText] 受信元テキスト型:", typeof inputText);
   let parsed: Record<string, string> = {};
 
   if (typeof inputText === 'object' && inputText !== null) {
@@ -117,8 +110,6 @@ function parseInputText(inputText: any): Record<string, string> {
       }
     }
   }
-
-  console.log("--- [parseInputText] 抽出されたキー一覧:", Object.keys(parsed));
 
   const findValue = (...keys: string[]) => {
     for (const k of keys) {
@@ -158,8 +149,6 @@ function parseInputText(inputText: any): Record<string, string> {
 
   return normalized;
 }
-
-// --- 描画ユーティリティ ---
 
 function normalizeKatakana(str: string): string[] {
   const normalized = str.normalize('NFD');
@@ -236,8 +225,6 @@ function drawMultiLineText(
   });
 }
 
-// --- PDF描画ロジック (デバッグログ付き) ---
-
 export async function renderPdfForm(
   pdfBytes: Uint8Array,
   schema: FormSchema,
@@ -249,7 +236,6 @@ export async function renderPdfForm(
   const customFont = await pdfDoc.embedFont(fontBytes);
 
   const isForm5 = schema.form === '5';
-  let drawnFieldCount = 0;
 
   for (const pageSchema of schema.pages) {
     const pageIndex = pageSchema.page - 1;
@@ -263,9 +249,7 @@ export async function renderPdfForm(
 
       const strVal = String(val);
       const fontSize = field.fontSize || 10;
-      drawnFieldCount++;
 
-      // 1. 様式第5号(Form5) 専用の OCR マス目ピッチ描画
       if (isForm5 && field.id === 'Labor_insurance_No.') {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
       } else if (isForm5 && (field.id === 'date_of_birth' || field.id === 'Date_of_injury')) {
@@ -277,10 +261,7 @@ export async function renderPdfForm(
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 3);
       } else if (isForm5 && (field.id === 'zip_last' || field.id === 'claimant_zip_last')) {
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
-      }
-
-      // 2. 枠が狭い項目・長文項目の自動折り返し（改行）処理
-      else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
+      } else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
         drawMultiLineText(page, strVal, field.x, field.y, 14, 28, 4, customFont, fontSize);
       } else if (field.id === 'Claim_Hospital_name') {
         drawMultiLineText(page, strVal, field.x, field.y, 11, 12, 2, customFont, 8);
@@ -288,10 +269,7 @@ export async function renderPdfForm(
         drawMultiLineText(page, strVal, field.x, field.y, 11, 18, 2, customFont, 8);
       } else if (!isForm5 && field.id === 'worker_name') {
         drawMultiLineText(page, strVal, field.x, field.y, 11, 10, 2, customFont, 8);
-      }
-
-      // 3. 通常テキスト描画
-      else {
+      } else {
         page.drawText(strVal, {
           x: field.x,
           y: field.y,
@@ -303,35 +281,23 @@ export async function renderPdfForm(
     }
   }
 
-  console.log(`--- [renderPdfForm] 様式${schema.form}号 描画完了 (実際に書き込まれた項目数: ${drawnFieldCount}件)`);
   return await pdfDoc.save();
 }
 
-// --- エントリーポイント関数 ---
-
 /**
- * 様式第5号 生成（初診用・薬局用の2枚を生成して配列で返却）
+ * 様式第5号 生成API用
  */
 export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
-  console.log("==================== [generateForm5PDFs 開始] ====================");
-  console.log("raw inputText:", inputText);
-
   const parsedInput = parseInputText(inputText);
   const mappedData = buildForm5Data(parsedInput, false);
-
-  console.log("mappedData (Form5の一部):", {
-    Claim_Hospital_name: mappedData["Claim_Hospital_name"],
-    worker_name: mappedData["worker_name"],
-    Hospital_name: mappedData["Hospital_name"],
-  });
 
   const templatePdfBytes = loadTemplatePdf('form5.pdf');
   const fontBytes = loadFontFile();
   const schema = loadSchemaFile('5');
 
   const targets = [
-    { filename: '5号様式（初診用）.pdf', type: 'hospital' },
-    { filename: '5号様式（薬局用）.pdf', type: 'pharmacy' },
+    { filename: '様式5号（病院用）.pdf', type: 'hospital' },
+    { filename: '様式5号（薬局用）.pdf', type: 'pharmacy' },
   ];
 
   const results: PDFResult[] = [];
@@ -346,34 +312,24 @@ export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
       }
     }
 
-    console.log(`[Form5] ${target.filename} のレンダリング実行中...`);
     const pdfBytes = await renderPdfForm(templatePdfBytes, schema, currentData, fontBytes);
-
     results.push({
       filename: target.filename,
       buffer: Buffer.from(pdfBytes),
     });
   }
 
-  console.log(`==================== [generateForm5PDFs 終了: 生成件数 ${results.length}件] ====================`);
   return results;
 }
 
 /**
- * 様式第6号 生成（1回目転院・2回目転院のPDFを自動判定して返却）
+ * 様式第6号 生成API用
  */
 export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
-  console.log("==================== [generateForm6PDFs 開始] ====================");
-  console.log("f5InputText:", f5InputText);
-  console.log("f6InputText:", f6InputText);
-
   const parsedF5 = parseInputText(f5InputText);
   const parsedF6 = parseInputText(f6InputText);
 
-  // 5号様式のデータ（初診病院の情報取得に使用）
   const f5Mapped = buildForm5Data(parsedF5, false);
-
-  // 6号様式のデータ取得
   const mapF6Fn = (form6Mapper as any).buildForm6Data || ((x: any) => x);
   const f6Result = mapF6Fn(parsedF6, false);
 
@@ -381,21 +337,13 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
   const transfer1 = f6Result.transfer1 || {};
   const transfer2 = f6Result.transfer2 || {};
 
-  console.log("f6Result 判定状況:", {
-    transfer1_name: transfer1.name,
-    transfer2_name: transfer2.name,
-    baseData_worker_name: baseData["worker_name"]
-  });
-
   const templatePdfBytes = loadTemplatePdf('form6.pdf');
   const fontBytes = loadFontFile();
   const schema = loadSchemaFile('6');
 
   const results: PDFResult[] = [];
 
-  // --- 1回目の転院PDF生成 ---
   if (transfer1.name) {
-    console.log("[Form6] 転院1回目のPDFをレンダリングします:", transfer1.name);
     const data1 = {
       ...f5Mapped,
       ...baseData,
@@ -413,16 +361,12 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
 
     const pdfBytes1 = await renderPdfForm(templatePdfBytes, schema, data1, fontBytes);
     results.push({
-      filename: '6号様式（転院1回目）.pdf',
+      filename: '様式6号（1回目）.pdf',
       buffer: Buffer.from(pdfBytes1),
     });
-  } else {
-    console.warn("[Form6 警告] 1回目の転院先病院名(transfer1.name)が空のためスキップされました。");
   }
 
-  // --- 2回目の転院PDF生成（入力が存在する場合のみ） ---
   if (transfer2.name) {
-    console.log("[Form6] 転院2回目のPDFをレンダリングします:", transfer2.name);
     const data2 = {
       ...f5Mapped,
       ...baseData,
@@ -440,13 +384,10 @@ export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Pro
 
     const pdfBytes2 = await renderPdfForm(templatePdfBytes, schema, data2, fontBytes);
     results.push({
-      filename: '6号様式（転院2回目）.pdf',
+      filename: '様式6号（2回目）.pdf',
       buffer: Buffer.from(pdfBytes2),
     });
-  } else {
-    console.log("[Form6 情報] 2回目の転院先病院名(transfer2.name)はありません。");
   }
 
-  console.log(`==================== [generateForm6PDFs 終了: 生成件数 ${results.length}件] ====================`);
   return results;
 }

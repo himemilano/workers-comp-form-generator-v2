@@ -1,5 +1,4 @@
-export function trimFacilitySuffix(name: string) {
-  if (!name) return "";
+export function trimFacilitySuffix(...args: any[]) {
+  const name = String(args[0] || "");
   return name.trim();
 }
-

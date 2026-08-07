@@ -4,7 +4,7 @@ export interface GenderResult {
   femaleMark: string;
 }
 
-export function parseGender(val: any): GenderResult {
+export function convertGender(val: any): GenderResult {
   const str = String(val || "");
   if (str.includes("1") || str.includes("男")) {
     return { code: "1", maleMark: "○", femaleMark: "" };
@@ -15,5 +15,9 @@ export function parseGender(val: any): GenderResult {
   return { code: "", maleMark: "", femaleMark: "" };
 }
 
-export default parseGender;
+export function parseGender(val: any): GenderResult {
+  return convertGender(val);
+}
+
+export default convertGender;
 
