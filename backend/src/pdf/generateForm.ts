@@ -3,6 +3,10 @@ import fontkit from '@pdf-lib/fontkit';
 import fs from 'fs';
 import path from 'path';
 
+// --- ルール / マッパーのインポート ---
+import { buildForm5Data } from '../rules/mappers/form5Mapper';
+import * as form6Mapper from '../rules/mappers/form6Mapper';
+
 // --- 型定義 ---
 export interface FieldSchema {
   id: string;
@@ -28,150 +32,146 @@ export interface PDFResult {
   buffer: Buffer;
 }
 
-// --- アセット（PDF・フォント・JSON）の柔軟なロード関数 ---
+// --- アセット（PDF・フォント・JSON）の読み込み ---
 
-/**
- * 渡された相対パスからプロジェクト階層を遡ってファイルを探索して読み込む
- */
 function loadAssetFile(relativePath: string): Buffer {
   const possiblePaths = [
+    path.resolve(process.cwd(), relativePath),
+    path.resolve(process.cwd(), 'backend', relativePath),
     path.resolve(__dirname, relativePath),
     path.resolve(__dirname, '..', relativePath),
     path.resolve(__dirname, '../..', relativePath),
-    path.resolve(__dirname, '../../..', relativePath),
-    path.resolve(process.cwd(), relativePath),
-    path.resolve(process.cwd(), '..', relativePath),
   ];
 
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
       const buffer = fs.readFileSync(p);
-      if (buffer.length > 0) {
-        return buffer;
-      }
+      if (buffer.length > 0) return buffer;
     }
   }
 
-  throw new Error(
-    `ファイル "${relativePath}" が見つかりませんでした。\n検索したパス:\n${possiblePaths.join('\n')}`
-  );
+  throw new Error(`ファイル "${relativePath}" が見つかりませんでした。`);
 }
 
-/**
- * テンプレートPDFの読み込み (`templates/form5.pdf` など)
- */
 function loadTemplatePdf(fileName: string): Buffer {
   return loadAssetFile(`templates/${fileName}`);
 }
 
-/**
- * フォントファイルの読み込み (`IPAexGothic.ttf`)
- */
 function loadFontFile(): Buffer {
   const fontPaths = [
-    'src/fonts/IPAexGothic.ttf',
     'backend/src/fonts/IPAexGothic.ttf',
+    'src/fonts/IPAexGothic.ttf',
     'fonts/IPAexGothic.ttf',
   ];
 
   for (const fp of fontPaths) {
     try {
       return loadAssetFile(fp);
-    } catch (e) {
-      // 順に試行
-    }
+    } catch (e) {}
   }
   throw new Error('フォントファイル (IPAexGothic.ttf) が見つかりません。');
 }
 
-/**
- * スキーマJSONの読み込み (`schemas/form5_schema.json` など)
- */
 function loadSchemaFile(formNum: string): FormSchema {
   const schemaPaths = [
-    `schemas/form${formNum}_schema.json`,
     `schemas/form${formNum}.json`,
-    `backend/schemas/form${formNum}_schema.json`,
+    `schemas/form${formNum}_schema.json`,
+    `backend/schemas/form${formNum}.json`,
   ];
 
   for (const sp of schemaPaths) {
     try {
       const buf = loadAssetFile(sp);
       return JSON.parse(buf.toString('utf-8'));
-    } catch (e) {
-      // 順に試行
-    }
+    } catch (e) {}
   }
-  throw new Error(`様式第${formNum}号のスキーマJSONが見つかりません。(schemas/form${formNum}_schema.json)`);
+  throw new Error(`様式第${formNum}号のスキーマJSONが見つかりません。`);
 }
 
-// --- 入力テキスト自動パース処理 ---
+// --- 入力テキスト自動パース処理 (デバッグログ付き) ---
 
-/**
- * テキスト文章（`項目名：値` 形式や JSON）を連想配列（オブジェクト）に自動変換する
- */
-function parseInputText(inputText: any): Record<string, any> {
+function parseInputText(inputText: any): Record<string, string> {
+  console.log("--- [parseInputText] 受信元テキスト型:", typeof inputText);
+  let parsed: Record<string, string> = {};
+
   if (typeof inputText === 'object' && inputText !== null) {
-    return inputText;
-  }
+    parsed = { ...inputText };
+  } else if (typeof inputText === 'string') {
+    const trimmed = inputText.trim();
+    try {
+      const cleaned = trimmed.replace(/```json\s?|\s?```/g, '').trim();
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+        parsed = JSON.parse(cleaned);
+      }
+    } catch (e) {}
 
-  if (typeof inputText !== 'string') {
-    return {};
-  }
-
-  const trimmed = inputText.trim();
-
-  // 1. もし JSON 形式で届いた場合
-  try {
-    const cleaned = trimmed.replace(/```json\s?|\s?```/g, '').trim();
-    if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-      return JSON.parse(cleaned);
-    }
-  } catch (e) {
-    // JSONでない場合はスルーしてテキスト解析へ
-  }
-
-  // 2. 「項目名：値」または「項目名: 値」形式のテキスト文章をパース
-  const result: Record<string, any> = {};
-  const lines = trimmed.split(/\r?\n/);
-
-  for (const line of lines) {
-    const match = line.match(/^([^：:]+)[：:](.*)$/);
-    if (match) {
-      const key = match[1].replace(/^【|】$/g, '').trim();
-      const value = match[2].trim();
-      if (key) {
-        result[key] = value;
+    if (Object.keys(parsed).length === 0) {
+      const lines = trimmed.split(/\r?\n/);
+      for (const line of lines) {
+        const match = line.match(/^([^：:]+)[：:](.*)$/);
+        if (match) {
+          const key = match[1].replace(/^【|】$/g, '').trim();
+          const value = match[2].trim();
+          if (key) parsed[key] = value;
+        }
       }
     }
   }
 
-  return result;
+  console.log("--- [parseInputText] 抽出されたキー一覧:", Object.keys(parsed));
+
+  const findValue = (...keys: string[]) => {
+    for (const k of keys) {
+      if (parsed[k]) return parsed[k];
+    }
+    return '';
+  };
+
+  const normalized: Record<string, string> = { ...parsed };
+
+  normalized['本人郵便番号(例: 123-4567)'] = findValue('本人郵便番号(例: 123-4567)', '本人郵便番号', '郵便番号', 'zip');
+  normalized['診療を受けた病院郵便番号(例: 100-0001)'] = findValue('診療を受けた病院郵便番号(例: 100-0001)', '病院郵便番号', '診療を受けた病院郵便番号');
+  normalized['本人電話番号(例: 090-1234-5678)'] = findValue('本人電話番号(例: 090-1234-5678)', '本人電話番号', '電話番号', 'tel');
+  normalized['病院電話番号(例: 03-1234-5678)'] = findValue('病院電話番号(例: 03-1234-5678)', '病院電話番号');
+  normalized['生年月日(例: 55年5月15日→550515)'] = findValue('生年月日(例: 55年5月15日→550515)', '生年月日', 'date_of_birth');
+  normalized['負傷年月日(例: 令和8年8月29日→080829)'] = findValue('負傷年月日(例: 令和8年8月29日→080829)', '負傷年月日', 'Date_of_injury');
+  normalized['記入日(例: 令和8年8月30日)'] = findValue('記入日(例: 令和8年8月30日)', '記入日', '日付');
+  normalized['負傷時刻区分(AM または PM)'] = findValue('負傷時刻区分(AM または PM)', '負傷時刻区分', 'AM/PM');
+  normalized['負傷時刻(時)'] = findValue('負傷時刻(時)', '負傷時刻時', '時');
+  normalized['負傷時刻(分)'] = findValue('負傷時刻(分)', '負傷時刻分', '分');
+  normalized['特別加入の労働保険番号'] = findValue('特別加入の労働保険番号', '労働保険番号', 'Labor_insurance_No.');
+  normalized['診療を受けた病院名'] = findValue('診療を受けた病院名', '病院名', 'Hospital_name');
+  normalized['住所都道府県'] = findValue('住所都道府県', '都道府県');
+  normalized['住所市町村以降'] = findValue('住所市町村以降', '市区町村以降', '住所');
+  normalized['氏名(漢字)'] = findValue('氏名(漢字)', '氏名', '労働者氏名', 'worker_name');
+  normalized['性別(男性は1、女性は3)'] = findValue('性別(男性は1、女性は3)', '性別', 'sex');
+  normalized['生年月日の和暦(昭和5, 平成7, 令和9)'] = findValue('生年月日の和暦(昭和5, 平成7, 令和9)', '生年月日和暦');
+  normalized['氏名フリガナ(全角カタカナ・姓と名の間にスペース)'] = findValue('氏名フリガナ(全角カタカナ・姓と名の間にスペース)', '氏名フリガナ', 'フリガナ');
+  normalized['年齢(数字のみ)'] = findValue('年齢(数字のみ)', '年齢', 'age');
+  normalized['住所都道府県フリガナ'] = findValue('住所都道府県フリガナ', '都道府県フリガナ');
+  normalized['住所市町村以降フリガナ'] = findValue('住所市町村以降フリガナ', '市区町村以降フリガナ');
+  normalized['職種'] = findValue('職種', 'Job_type');
+  normalized['災害の原因と発生状況'] = findValue('災害の原因と発生状況', '災害の原因及び発生状況', 'accident_detail');
+  normalized['診療を受けた病院住所'] = findValue('診療を受けた病院住所', '病院住所');
+  normalized['傷病の部位及び状態'] = findValue('傷病の部位及び状態', '傷病部位');
+  normalized['その会社の電話番号'] = findValue('その会社の電話番号', '所属会社電話番号', '本人所属会社電話番号');
+
+  return normalized;
 }
 
-// --- ユーティリティ関数 ---
+// --- 描画ユーティリティ ---
 
-/**
- * 濁点・半濁点を分離する（例: "ギ" -> "キ", "゛"）
- */
 function normalizeKatakana(str: string): string[] {
   const normalized = str.normalize('NFD');
   const result: string[] = [];
   for (const char of normalized) {
-    if (char === '\u3099') {
-      result.push('゛');
-    } else if (char === '\u309A') {
-      result.push('ﾟ');
-    } else {
-      result.push(char);
-    }
+    if (char === '\u3099') result.push('゛');
+    else if (char === '\u309A') result.push('ﾟ');
+    else result.push(char);
   }
   return result;
 }
 
-/**
- * マス目用に1文字ずつ間隔を開けて描画する
- */
 function drawSpacedText(
   page: any,
   text: string,
@@ -195,9 +195,6 @@ function drawSpacedText(
   });
 }
 
-/**
- * 長文を複数行に自動折り返して描画する（最大4行）
- */
 function drawMultiLineText(
   page: any,
   text: string,
@@ -239,120 +236,8 @@ function drawMultiLineText(
   });
 }
 
-/**
- * Form 5 の入力データ補完・前処理
- */
-export function processForm5Data(rawInput: Record<string, any>): Record<string, any> {
-  const data = { ...rawInput };
+// --- PDF描画ロジック (デバッグログ付き) ---
 
-  // 1. 固定・補完ルール
-  data['Date_of_injury,Japanese_era'] = '9'; // 令和固定
-  data['claimant_zip_first'] = data['zip_first'] || '';
-  data['claimant_zip_last'] = data['zip_last'] || '';
-  data["Claimant's_address"] = `${data['Personal_address_and_prefecture'] || ''}${data['Personal_address'] || ''}`;
-  data["Claimant's_name"] = data['worker_name'] || '';
-
-  // 2. AM/PM の 〇 表示ロジック
-  if (data['time_am_pm'] === 'AM' || data['time_am']) {
-    data['time_am'] = '〇';
-  } else if (data['time_am_pm'] === 'PM' || data['time_pm']) {
-    data['time_pm'] = '〇';
-  }
-
-  // 3. 裏面（Multiple）の 〇 表示
-  if (data['Multiple'] === '有') {
-    data['Multiple'] = '〇';
-  }
-
-  return data;
-}
-
-/**
- * Form 6 用のデータ連動・マッピング処理
- */
-export function processForm6DataFromForm5(f5Data: Record<string, any>, f6Input: Record<string, any>): Record<string, any> {
-  const data: Record<string, any> = { ...f6Input };
-
-  // Form 5 からの引き継ぎ項目
-  data['Area_of\u200b_the_Labor_Standards_Inspection_Office'] = f5Data['Area_of\u200b_the_Labor_Standards_Inspection_Office'];
-  data['Claim_Hospital_name'] = f5Data['Claim_Hospital_name'];
-  data['Year_of_entry'] = f5Data['Year_of_entry'];
-  data['Month_of_entry'] = f5Data['Month_of_entry'];
-  data['Date_of_entry'] = f5Data['Date_of_entry'];
-  data['zip_first'] = f5Data['zip_first'];
-  data['zip_last'] = f5Data['zip_last'];
-  data['claimant_tel_area'] = f5Data['claimant_tel_area'];
-  data['claimant_tel_city'] = f5Data['claimant_tel_city'];
-  data['claimant_tel_num'] = f5Data['claimant_tel_num'];
-  
-  data['Address_of_the_person_filing_the_notification'] = f5Data["Claimant's_address"];
-  data['Name_of_the_person_filing_the_notification'] = f5Data['worker_name'];
-
-  // 労働保険番号の分割
-  const laborNo = f5Data['Labor_insurance_No.'] || '';
-  data['Labor_insurance_No._first'] = laborNo.substring(0, 2);
-  data['Labor_insurance_No._last'] = laborNo.substring(2);
-
-  data['worker_name'] = f5Data['worker_name'];
-
-  // 性別 〇 印判定
-  if (String(f5Data['sex']) === '1') data['male'] = '〇';
-  if (String(f5Data['sex']) === '3') data['female'] = '〇';
-
-  // 生年月日変換 (5:昭和, 7:平成, 9:令和)
-  const eraMap: Record<string, string> = { '5': '昭和', '7': '平成', '9': '令和' };
-  const era = eraMap[String(f5Data['Date_of_birth,Japanese_era'])] || '';
-  const dob = String(f5Data['date_of_birth'] || '');
-  if (dob.length === 6) {
-    data['Year of birth'] = `${era}${dob.substring(0, 2)}年`;
-    data['Birth_month'] = String(parseInt(dob.substring(2, 4), 10));
-    data['Birth_day'] = String(parseInt(dob.substring(4, 6), 10));
-  }
-
-  data['age'] = f5Data['age'];
-  data["Claimant's_address"] = f5Data["Claimant's_address"];
-  data['Job_type'] = f5Data['Job_type'];
-
-  // 負傷年月日変換
-  const doi = String(f5Data['Date_of_injury'] || '');
-  if (doi.length === 6) {
-    data['injury_year'] = `令和${doi.substring(0, 2)}`;
-    data['injury_month'] = String(parseInt(doi.substring(2, 4), 10));
-    data['injury_day'] = String(parseInt(doi.substring(4, 6), 10));
-  }
-
-  // 負傷時間区分
-  if (f5Data['time_am'] === '〇') data['injury_time_am'] = '〇';
-  if (f5Data['time_pm'] === '〇') data['injury_time_pm'] = '〇';
-
-  data['disaster_hour'] = f5Data['disaster_hour'];
-  data['disaster_minute'] = f5Data['disaster_minute'];
-  data['accident_detail'] = f5Data['accident_detail'];
-
-  // 会社・病院情報のコピー
-  data['Year_of_proof_of_fact'] = f5Data['Year_of_proof_of_fact'];
-  data['Month_of_Proof_of_Fact'] = f5Data['Month_of_Proof_of_Fact'];
-  data['The_day_of_proof_of_fact'] = f5Data['The_day_of_proof_of_facts'];
-
-  data['Company_Name'] = f5Data['Company_Name'];
-  data['Company_zip_first'] = f5Data['Company_zip_first'];
-  data['Company_zip_last'] = f5Data['Company_zip_last'];
-  data['Company_tel_area'] = f5Data['Company_tel_area'];
-  data['Company_tel_city'] = f5Data['Company_tel_city'];
-  data['Company_tel_num'] = f5Data['Company_tel_num'];
-  data['Company_Address'] = f5Data['Company_Address'];
-  data["Representative's_name"] = f5Data["Representative's_name"];
-
-  data['Hospital_name'] = f5Data['Hospital_name'];
-  data['Hospital_Address'] = f5Data['Hospital_Address'];
-  data['Hospital_zip_first'] = f5Data['Hospital_zip_first'];
-  data['Hospital_zip_last'] = f5Data['Hospital_zip_last'];
-  data['Location_and_condition_of_the_injury'] = f5Data['Location_and_condition_of_the_injury'];
-
-  return data;
-}
-
-// --- PDF描画処理 ---
 export async function renderPdfForm(
   pdfBytes: Uint8Array,
   schema: FormSchema,
@@ -363,6 +248,9 @@ export async function renderPdfForm(
   pdfDoc.registerFontkit(fontkit);
   const customFont = await pdfDoc.embedFont(fontBytes);
 
+  const isForm5 = schema.form === '5';
+  let drawnFieldCount = 0;
+
   for (const pageSchema of schema.pages) {
     const pageIndex = pageSchema.page - 1;
     if (pageIndex >= pdfDoc.getPageCount()) continue;
@@ -371,40 +259,35 @@ export async function renderPdfForm(
 
     for (const field of pageSchema.fields) {
       const val = formData[field.id];
-
-      if (val === undefined || val === null || val === '') {
-        continue;
-      }
+      if (val === undefined || val === null || val === '') continue;
 
       const strVal = String(val);
       const fontSize = field.fontSize || 10;
+      drawnFieldCount++;
 
-      // 1. マス目項目の判定
-      if (field.id === 'Labor_insurance_No.') {
+      // 1. 様式第5号(Form5) 専用の OCR マス目ピッチ描画
+      if (isForm5 && field.id === 'Labor_insurance_No.') {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 14);
-      } else if (field.id === 'date_of_birth' || field.id === 'Date_of_injury') {
+      } else if (isForm5 && (field.id === 'date_of_birth' || field.id === 'Date_of_injury')) {
         drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 6);
-      } else if (field.id === 'Name_in_Katakana') {
+      } else if (isForm5 && field.id === 'Name_in_Katakana') {
         const kanaChars = normalizeKatakana(strVal);
         drawSpacedText(page, kanaChars.join(''), field.x, field.y, 13.5, customFont, fontSize, 16);
-      } else if (field.id === 'zip_first' || field.id === 'Hospital_zip_first' || field.id === 'Company_zip_first' || field.id === 'claimant_zip_first') {
+      } else if (isForm5 && (field.id === 'zip_first' || field.id === 'claimant_zip_first')) {
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 3);
-      } else if (field.id === 'zip_last' || field.id === 'Hospital_zip_last' || field.id === 'Company_zip_last' || field.id === 'claimant_zip_last') {
+      } else if (isForm5 && (field.id === 'zip_last' || field.id === 'claimant_zip_last')) {
         drawSpacedText(page, strVal, field.x, field.y, 12.0, customFont, fontSize, 4);
-      } 
-      else if (field.id === 'Labor_insurance_No._first') {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 2);
-      } else if (field.id === 'Labor_insurance_No._last') {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 12);
-      } else if (field.id === 'Pension_certificate_jurisdiction') {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 2);
-      } else if (field.id === 'Pension certificate number') {
-        drawSpacedText(page, strVal, field.x, field.y, 14.2, customFont, fontSize, 10);
       }
 
-      // 2. 長文自動改行項目の判定
+      // 2. 枠が狭い項目・長文項目の自動折り返し（改行）処理
       else if (field.id === 'accident_detail' || field.id === 'Reason_for_transfer_to_another_hospital') {
         drawMultiLineText(page, strVal, field.x, field.y, 14, 28, 4, customFont, fontSize);
+      } else if (field.id === 'Claim_Hospital_name') {
+        drawMultiLineText(page, strVal, field.x, field.y, 11, 12, 2, customFont, 8);
+      } else if (field.id === "Claimant's_address") {
+        drawMultiLineText(page, strVal, field.x, field.y, 11, 18, 2, customFont, 8);
+      } else if (!isForm5 && field.id === 'worker_name') {
+        drawMultiLineText(page, strVal, field.x, field.y, 11, 10, 2, customFont, 8);
       }
 
       // 3. 通常テキスト描画
@@ -420,54 +303,150 @@ export async function renderPdfForm(
     }
   }
 
+  console.log(`--- [renderPdfForm] 様式${schema.form}号 描画完了 (実際に書き込まれた項目数: ${drawnFieldCount}件)`);
   return await pdfDoc.save();
 }
 
 // --- エントリーポイント関数 ---
 
 /**
- * 様式第5号 PDF生成 (配列形式で返却)
+ * 様式第5号 生成（初診用・薬局用の2枚を生成して配列で返却）
  */
 export async function generateForm5PDFs(inputText: any): Promise<PDFResult[]> {
-  const rawInput = parseInputText(inputText);
-  const processedData = processForm5Data(rawInput);
+  console.log("==================== [generateForm5PDFs 開始] ====================");
+  console.log("raw inputText:", inputText);
 
-  // 画像で確認した構成に合わせた読み込み
+  const parsedInput = parseInputText(inputText);
+  const mappedData = buildForm5Data(parsedInput, false);
+
+  console.log("mappedData (Form5の一部):", {
+    Claim_Hospital_name: mappedData["Claim_Hospital_name"],
+    worker_name: mappedData["worker_name"],
+    Hospital_name: mappedData["Hospital_name"],
+  });
+
   const templatePdfBytes = loadTemplatePdf('form5.pdf');
   const fontBytes = loadFontFile();
   const schema = loadSchemaFile('5');
 
-  const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
-
-  return [
-    {
-      filename: '様式第5号_療養補償給付支給請求書.pdf',
-      buffer: Buffer.from(pdfBytes),
-    },
+  const targets = [
+    { filename: '5号様式（初診用）.pdf', type: 'hospital' },
+    { filename: '5号様式（薬局用）.pdf', type: 'pharmacy' },
   ];
+
+  const results: PDFResult[] = [];
+
+  for (const target of targets) {
+    const currentData = { ...mappedData };
+
+    if (target.type === 'pharmacy') {
+      const pharmacyName = parsedInput['薬局名'] || parsedInput['指定薬局名称'] || '';
+      if (pharmacyName) {
+        currentData['Claim_Hospital_name'] = pharmacyName;
+      }
+    }
+
+    console.log(`[Form5] ${target.filename} のレンダリング実行中...`);
+    const pdfBytes = await renderPdfForm(templatePdfBytes, schema, currentData, fontBytes);
+
+    results.push({
+      filename: target.filename,
+      buffer: Buffer.from(pdfBytes),
+    });
+  }
+
+  console.log(`==================== [generateForm5PDFs 終了: 生成件数 ${results.length}件] ====================`);
+  return results;
 }
 
 /**
- * 様式第6号 PDF生成 (配列形式で返却)
+ * 様式第6号 生成（1回目転院・2回目転院のPDFを自動判定して返却）
  */
 export async function generateForm6PDFs(f5InputText: any, f6InputText: any): Promise<PDFResult[]> {
-  const f5Input = parseInputText(f5InputText);
-  const f6Input = parseInputText(f6InputText);
+  console.log("==================== [generateForm6PDFs 開始] ====================");
+  console.log("f5InputText:", f5InputText);
+  console.log("f6InputText:", f6InputText);
 
-  const f5Processed = processForm5Data(f5Input);
-  const processedData = processForm6DataFromForm5(f5Processed, f6Input);
+  const parsedF5 = parseInputText(f5InputText);
+  const parsedF6 = parseInputText(f6InputText);
 
-  // 画像で確認した構成に合わせた読み込み
+  // 5号様式のデータ（初診病院の情報取得に使用）
+  const f5Mapped = buildForm5Data(parsedF5, false);
+
+  // 6号様式のデータ取得
+  const mapF6Fn = (form6Mapper as any).buildForm6Data || ((x: any) => x);
+  const f6Result = mapF6Fn(parsedF6, false);
+
+  const baseData = f6Result.baseData || {};
+  const transfer1 = f6Result.transfer1 || {};
+  const transfer2 = f6Result.transfer2 || {};
+
+  console.log("f6Result 判定状況:", {
+    transfer1_name: transfer1.name,
+    transfer2_name: transfer2.name,
+    baseData_worker_name: baseData["worker_name"]
+  });
+
   const templatePdfBytes = loadTemplatePdf('form6.pdf');
   const fontBytes = loadFontFile();
   const schema = loadSchemaFile('6');
 
-  const pdfBytes = await renderPdfForm(templatePdfBytes, schema, processedData, fontBytes);
+  const results: PDFResult[] = [];
 
-  return [
-    {
-      filename: '様式第6号_療養補償給付指定病院等変更届.pdf',
-      buffer: Buffer.from(pdfBytes),
-    },
-  ];
+  // --- 1回目の転院PDF生成 ---
+  if (transfer1.name) {
+    console.log("[Form6] 転院1回目のPDFをレンダリングします:", transfer1.name);
+    const data1 = {
+      ...f5Mapped,
+      ...baseData,
+      "Claim_Hospital_name": transfer1.name,
+      "Hospital_name": f5Mapped["Hospital_name"] || "",
+      "Hospital_Address": f5Mapped["Hospital_Address"] || "",
+      "Hospital_zip_first": f5Mapped["Hospital_zip_first"] || "",
+      "Hospital_zip_last": f5Mapped["Hospital_zip_last"] || "",
+      "Hospital_after_transfer": transfer1.name,
+      "Address_of_the_hospital_after_transfer": transfer1.address,
+      "Postal_code_first_of_the_hospital_after_transfer": transfer1.zip?.first || "",
+      "Postal_code_last_of_the_hospital_after_transfer": transfer1.zip?.last || "",
+      "Reason_for_transfer_to_another_hospital": transfer1.reason,
+    };
+
+    const pdfBytes1 = await renderPdfForm(templatePdfBytes, schema, data1, fontBytes);
+    results.push({
+      filename: '6号様式（転院1回目）.pdf',
+      buffer: Buffer.from(pdfBytes1),
+    });
+  } else {
+    console.warn("[Form6 警告] 1回目の転院先病院名(transfer1.name)が空のためスキップされました。");
+  }
+
+  // --- 2回目の転院PDF生成（入力が存在する場合のみ） ---
+  if (transfer2.name) {
+    console.log("[Form6] 転院2回目のPDFをレンダリングします:", transfer2.name);
+    const data2 = {
+      ...f5Mapped,
+      ...baseData,
+      "Claim_Hospital_name": transfer2.name,
+      "Hospital_name": transfer1.name,
+      "Hospital_Address": transfer1.address,
+      "Hospital_zip_first": transfer1.zip?.first || "",
+      "Hospital_zip_last": transfer1.zip?.last || "",
+      "Hospital_after_transfer": transfer2.name,
+      "Address_of_the_hospital_after_transfer": transfer2.address,
+      "Postal_code_first_of_the_hospital_after_transfer": transfer2.zip?.first || "",
+      "Postal_code_last_of_the_hospital_after_transfer": transfer2.zip?.last || "",
+      "Reason_for_transfer_to_another_hospital": transfer2.reason,
+    };
+
+    const pdfBytes2 = await renderPdfForm(templatePdfBytes, schema, data2, fontBytes);
+    results.push({
+      filename: '6号様式（転院2回目）.pdf',
+      buffer: Buffer.from(pdfBytes2),
+    });
+  } else {
+    console.log("[Form6 情報] 2回目の転院先病院名(transfer2.name)はありません。");
+  }
+
+  console.log(`==================== [generateForm6PDFs 終了: 生成件数 ${results.length}件] ====================`);
+  return results;
 }

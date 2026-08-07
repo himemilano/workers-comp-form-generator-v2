@@ -4,7 +4,7 @@ export function convertGender(value: string) {
       return 1;
 
     case "female":
-      return 2;
+      return 3;
 
     default:
       return null;
