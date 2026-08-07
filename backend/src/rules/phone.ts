@@ -1,25 +1,10 @@
-export function normalizePhoneNumber(
-  phoneNumber: string
-): string {
-  const cleaned = phoneNumber.replace(
-    /[^0-9]/g,
-    ""
-  );
-
-  if (cleaned.length < 10) {
-    throw new Error(
-      "電話番号が短すぎます"
-    );
-  }
-
-  return cleaned;
-}
-
-export function getPhoneDigits(
-  phoneNumber: string
-): string[] {
-  return normalizePhoneNumber(
-    phoneNumber
-  ).split("");
+export function splitPhoneNumber(phoneStr: string) {
+  if (!phoneStr) return { area: "", city: "", number: "" };
+  const parts = phoneStr.split("-");
+  return {
+    area: parts[0] || "",
+    city: parts[1] || "",
+    number: parts[2] || "",
+  };
 }
 

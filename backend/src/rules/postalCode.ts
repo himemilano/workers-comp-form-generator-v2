@@ -1,36 +1,9 @@
-export interface PostalCode {
-  firstPart: string;
-  secondPart: string;
-}
-
-export function validatePostalCode(
-  postalCode: string
-): PostalCode {
-  const cleaned = postalCode.replace("-", "").trim();
-
-  if (!/^\d{7}$/.test(cleaned)) {
-    throw new Error(
-      "郵便番号は7桁の数字で入力してください"
-    );
-  }
-
+export function splitPostalCode(zipStr: string) {
+  if (!zipStr) return { first: "", last: "" };
+  const clean = zipStr.replace(/[^\d]/g, "");
   return {
-    firstPart: cleaned.slice(0, 3),
-    secondPart: cleaned.slice(3)
+    first: clean.slice(0, 3),
+    last: clean.slice(3, 7),
   };
-}
-
-export function getPostalCodeDigits(
-  postalCode: string
-): string[] {
-  const cleaned = postalCode.replace("-", "").trim();
-
-  if (!/^\d{7}$/.test(cleaned)) {
-    throw new Error(
-      "郵便番号は7桁の数字で入力してください"
-    );
-  }
-
-  return cleaned.split("");
 }
 
