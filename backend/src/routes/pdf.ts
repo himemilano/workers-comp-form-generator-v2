@@ -19,7 +19,7 @@ router.post("/form5", async (req: Request, res: Response) => {
     const pdfResults = await generateForm5PDFs(inputText);
 
     // フロントエンドで扱いやすいよう Base64 形式に変換して返却
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",
@@ -51,7 +51,7 @@ router.post("/form6", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "転院先データが存在しないため、PDFが生成されませんでした" });
     }
 
-    const files = pdfResults.map((item) => ({
+    const files = pdfResults.map((item: any) => ({
       filename: item.filename,
       base64: item.buffer.toString("base64"),
       contentType: "application/pdf",
