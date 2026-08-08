@@ -2,7 +2,12 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import fs from 'fs';
 import path from 'path';
-import form5Json from './form5.json';
+
+// JSONインポートの型エラー(TS2732)を回避するため require を使用
+const form5Json = require('./form5.json');
+
+// 様式6号の関数も併せてインポート
+import { generateForm6PDF } from './generateForm6';
 
 // --- 病院・薬局名の末尾（「病院」「薬局」など）を自動除去する関数 ---
 function cleanHospitalName(name: string): string {
@@ -72,14 +77,14 @@ export async function generateForm5PDF(formData: Record<string, any>): Promise<U
   // --- 描画ループ処理（JSONの pages 構造に対応） ---
   for (const pageConfig of form5Json.pages) {
     const pageIndex = pageConfig.page - 1;
-    if (pageIndex >= pages.length) continue; // 該当ページが存在しない場合はスキップ
+    if (pageIndex >= pages.length) continue;
 
     const page = pages[pageIndex];
 
     for (const field of pageConfig.fields) {
       const value = data[field.id];
       if (value === undefined || value === null || value === '') {
-        continue; // 未入力欄はスキップ
+        continue;
       }
 
       const strValue = String(value);
@@ -87,7 +92,6 @@ export async function generateForm5PDF(formData: Record<string, any>): Promise<U
       const fontSize = rule?.fontSize || field.fontSize || 10;
 
       if (rule?.renderType === 'grid' && rule.pitch) {
-        // マス目（一定間隔ピッチ）印字処理
         for (let i = 0; i < strValue.length; i++) {
           const char = strValue[i];
           const charX = field.x + (i * rule.pitch);
@@ -100,7 +104,6 @@ export async function generateForm5PDF(formData: Record<string, any>): Promise<U
           });
         }
       } else {
-        // 通常印字処理
         page.drawText(strValue, {
           x: field.x,
           y: field.y,
@@ -114,3 +117,7 @@ export async function generateForm5PDF(formData: Record<string, any>): Promise<U
 
   return await pdfDoc.save();
 }
+
+// ルーティング側の要求(TS2724)に合わせて複数形名でもエイリアス出力
+export { generateForm5PDF as generateForm5PDFs };
+export { generateForm6PDF as generateForm6PDFs };
