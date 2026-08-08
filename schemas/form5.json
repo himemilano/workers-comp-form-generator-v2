@@ -2,487 +2,83 @@
   "form": "5",
   "name": "療養補償給付たる療養の給付請求書",
   "template": "form5.pdf",
-
   "pages": [
     {
       "page": 1,
       "name": "front",
       "fields": [
-  {
-    "id": "Labor_insurance_No.",
-    "page": 1,
-    "x": 60,
-    "y": 717,
-    "fontSize": 10
-  },
-  {
-    "id": "sex",
-    "page": 1,
-    "x": 63,
-    "y": 674,
-    "fontSize": 10
-  },
-  {
-    "id": "Date_of_birth,Japanese_era",
-    "page": 1,
-    "x": 95,
-    "y": 672,
-    "fontSize": 10
-  },
-  {
-    "id": "date_of_birth",
-    "page": 1,
-    "x": 113,
-    "y": 673,
-    "fontSize": 10
-  },
-  {
-    "id": "Date_of_injury,Japanese_era",
-    "page": 1,
-    "x": 226,
-    "y": 673,
-    "fontSize": 10
-  },
-  {
-    "id": "Date_of_injury",
-    "page": 1,
-    "x": 243,
-    "y": 673,
-    "fontSize": 10
-  },
-  {
-    "id": "Name_in_Katakana",
-    "page": 1,
-    "x": 59,
-    "y": 633,
-    "fontSize": 10
-  },
-  {
-    "id": "worker_name",
-    "page": 1,
-    "x": 89,
-    "y": 613,
-    "fontSize": 10
-  },
-  {
-    "id": "age",
-    "page": 1,
-    "x": 313,
-    "y": 612,
-    "fontSize": 10
-  },
-  {
-    "id": "zip_first",
-    "page": 1,
-    "x": 95,
-    "y": 585,
-    "fontSize": 10
-  },
-  {
-    "id": "zip_last",
-    "page": 1,
-    "x": 154,
-    "y": 584,
-    "fontSize": 10
-  },
-  {
-    "id": "Personal_address_and_prefecture,and_phonetic_spelling",
-    "page": 1,
-    "x": 245,
-    "y": 598,
-    "fontSize": 10
-  },
-  {
-    "id": "Personal_address_and_prefecture",
-    "page": 1,
-    "x": 239,
-    "y": 581,
-    "fontSize": 10
-  },
-  {
-    "id": "Personal_address_in_kana",
-    "page": 1,
-    "x": 95,
-    "y": 567,
-    "fontSize": 10
-  },
-  {
-    "id": "Personal_address",
-    "page": 1,
-    "x": 83,
-    "y": 550,
-    "fontSize": 10
-  },
-  {
-    "id": "Job_type",
-    "page": 1,
-    "x": 93,
-    "y": 533,
-    "fontSize": 10
-  },
-  {
-    "id": "time_am",
-    "page": 1,
-    "x": 377,
-    "y": 550,
-    "fontSize": 10
-  },
-  {
-    "id": "time_pm",
-    "page": 1,
-    "x": 377,
-    "y": 537,
-    "fontSize": 10
-  },
-  {
-    "id": "disaster_hour",
-    "page": 1,
-    "x": 389,
-    "y": 543,
-    "fontSize": 10
-  },
-  {
-    "id": "disaster_minute",
-    "page": 1,
-    "x": 411,
-    "y": 541,
-    "fontSize": 10
-  },
-  {
-    "id": "Title_of_the_person_verifying_the_facts",
-    "page": 1,
-    "x": 465,
-    "y": 549,
-    "fontSize": 10
-  },
-  {
-    "id": "Name_of_the_person_who_confirmed_the_facts",
-    "page": 1,
-    "x": 465,
-    "y": 533,
-    "fontSize": 10
-  },
-  {
-    "id": "accident_detail",
-    "page": 1,
-    "x": 43,
-    "y": 493,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_name",
-    "page": 1,
-    "x": 145,
-    "y": 413,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_Address",
-    "page": 1,
-    "x": 145,
-    "y": 393,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_tel_area",
-    "page": 1,
-    "x": 444,
-    "y": 413,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_tel_city",
-    "page": 1,
-    "x": 479,
-    "y": 413,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_tel_num",
-    "page": 1,
-    "x": 518,
-    "y": 413,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_zip_first",
-    "page": 1,
-    "x": 433,
-    "y": 394,
-    "fontSize": 10
-  },
-  {
-    "id": "Hospital_zip_last",
-    "page": 1,
-    "x": 476,
-    "y": 393,
-    "fontSize": 10
-  },
-  {
-    "id": "Location_and_condition_of_the_injury",
-    "page": 1,
-    "x": 146,
-    "y": 373,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_Name",
-    "page": 1,
-    "x": 94,
-    "y": 335,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_Address",
-    "page": 1,
-    "x": 108,
-    "y": 313,
-    "fontSize": 10
-  },
-  {
-    "id": "Representative's_name",
-    "page": 1,
-    "x": 108,
-    "y": 293,
-    "fontSize": 10
-  },
-  {
-    "id": "Year_of_proof_of_fact",
-    "page": 1,
-    "x": 427,
-    "y": 357,
-    "fontSize": 10
-  },
-  {
-    "id": "Month_of_Proof_of_Fact",
-    "page": 1,
-    "x": 473,
-    "y": 357,
-    "fontSize": 10
-  },
-  {
-    "id": "The_day_of_proof_of_facts",
-    "page": 1,
-    "x": 505,
-    "y": 357,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_tel_area",
-    "page": 1,
-    "x": 445,
-    "y": 335,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_tel_city",
-    "page": 1,
-    "x": 480,
-    "y": 334,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_tel_num",
-    "page": 1,
-    "x": 517,
-    "y": 335,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_zip_first",
-    "page": 1,
-    "x": 433,
-    "y": 313,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_zip_last",
-    "page": 1,
-    "x": 477,
-    "y": 313,
-    "fontSize": 10
-  },
-  {
-    "id": "Company_name_and_representative's_name",
-    "page": 1,
-    "x": 123,
-    "y": 265,
-    "fontSize": 10
-  },
-  {
-    "id": "The_person's_affiliated_company_tel_area",
-    "page": 1,
-    "x": 445,
-    "y": 264,
-    "fontSize": 10
-  },
-  {
-    "id": "The_person's_affiliated_company_tel_city",
-    "page": 1,
-    "x": 481,
-    "y": 264,
-    "fontSize": 10
-  },
-  {
-    "id": "The_person's_affiliated_company_tel_num",
-    "page": 1,
-    "x": 517,
-    "y": 265,
-    "fontSize": 10
-  },
-  {
-    "id": "Area_of​_the_Labor_Standards_Inspection_Office",
-    "page": 1,
-    "x": 61,
-    "y": 195,
-    "fontSize": 10
-  },
-  {
-    "id": "Claim_Hospital_name",
-    "page": 1,
-    "x": 59,
-    "y": 165,
-    "fontSize": 10
-  },
-  {
-    "id": "claimant_zip_first",
-    "page": 1,
-    "x": 271,
-    "y": 187,
-    "fontSize": 10
-  },
-  {
-    "id": "claimant_zip_last",
-    "page": 1,
-    "x": 312,
-    "y": 187,
-    "fontSize": 10
-  },
-  {
-    "id": "Claimant's_address",
-    "page": 1,
-    "x": 285,
-    "y": 167,
-    "fontSize": 10
-  },
-  {
-    "id": "Claimant's_name",
-    "page": 1,
-    "x": 287,
-    "y": 147,
-    "fontSize": 10
-  },
-  {
-    "id": "Year_of_entry",
-    "page": 1,
-    "x": 426,
-    "y": 211,
-    "fontSize": 10
-  },
-  {
-    "id": "Month_of_entry",
-    "page": 1,
-    "x": 471,
-    "y": 211,
-    "fontSize": 10
-  },
-  {
-    "id": "Date_of_entry",
-    "page": 1,
-    "x": 503,
-    "y": 211,
-    "fontSize": 10
-  },
-  {
-    "id": "claimant_tel_area",
-    "page": 1,
-    "x": 445,
-    "y": 187,
-    "fontSize": 10
-  },
-  {
-    "id": "claimant_tel_city",
-    "page": 1,
-    "x": 481,
-    "y": 188,
-    "fontSize": 10
-  },
-  {
-    "id": "claimant_tel_num",
-    "page": 1,
-    "x": 516,
-    "y": 187,
-    "fontSize": 10
-  },
-  {
-    "id": "Claimant's_address",
-    "page": 1,
-    "x": 286,
-    "y": 167,
-    "fontSize": 10
-  },
-  {
-    "id": "Claimant's_name",
-    "page": 1,
-    "x": 286,
-    "y": 147,
-    "fontSize": 10
-  }
-]
+        { "id": "Labor_insurance_No.", "page": 1, "x": 105.5, "y": 703, "fontSize": 14 },
+        { "id": "sex", "page": 1, "x": 302.5, "y": 662, "fontSize": 14 },
+        { "id": "Date_of_birth,Japanese_era", "page": 1, "x": 339.5, "y": 662, "fontSize": 14 },
+        { "id": "date_of_birth", "page": 1, "x": 361.5, "y": 662, "fontSize": 14 },
+        { "id": "Date_of_injury,Japanese_era", "page": 1, "x": 481.5, "y": 662, "fontSize": 14 },
+        { "id": "Date_of_injury", "page": 1, "x": 503.5, "y": 662, "fontSize": 14 },
+        { "id": "Name_in_Katakana", "page": 1, "x": 98, "y": 637, "fontSize": 11 },
+        { "id": "worker_name", "page": 1, "x": 98, "y": 612, "fontSize": 12 },
+        { "id": "age", "page": 1, "x": 230, "y": 612, "fontSize": 11 },
+        { "id": "zip_first", "page": 1, "x": 302, "y": 612, "fontSize": 11 },
+        { "id": "zip_last", "page": 1, "x": 348, "y": 612, "fontSize": 11 },
+        { "id": "Personal_address_and_prefecture,and_phonetic_spelling", "page": 1, "x": 302, "y": 637, "fontSize": 9 },
+        { "id": "Personal_address_and_prefecture", "page": 1, "x": 435, "y": 637, "fontSize": 11 },
+        { "id": "Personal_address_in_kana", "page": 1, "x": 302, "y": 622, "fontSize": 9 },
+        { "id": "Personal_address", "page": 1, "x": 440, "y": 622, "fontSize": 10 },
+        { "id": "Job_type", "page": 1, "x": 302, "y": 592, "fontSize": 10 },
+        { "id": "time_am", "page": 1, "x": 280, "y": 528, "fontSize": 11 },
+        { "id": "time_pm", "page": 1, "x": 300, "y": 528, "fontSize": 11 },
+        { "id": "disaster_hour", "page": 1, "x": 330, "y": 528, "fontSize": 11 },
+        { "id": "disaster_minute", "page": 1, "x": 360, "y": 528, "fontSize": 11 },
+        { "id": "Title_of_the_person_verifying_the_facts", "page": 1, "x": 420, "y": 538, "fontSize": 10 },
+        { "id": "Name_of_the_person_who_confirmed_the_facts", "page": 1, "x": 420, "y": 518, "fontSize": 10 },
+        { "id": "accident_detail", "page": 1, "x": 98, "y": 480, "fontSize": 9 },
+        { "id": "Hospital_name", "page": 1, "x": 150, "y": 425, "fontSize": 10 },
+        { "id": "Hospital_Address", "page": 1, "x": 150, "y": 410, "fontSize": 10 },
+        { "id": "Hospital_tel_area", "page": 1, "x": 444, "y": 413, "fontSize": 10 },
+        { "id": "Hospital_tel_city", "page": 1, "x": 479, "y": 413, "fontSize": 10 },
+        { "id": "Hospital_tel_num", "page": 1, "x": 518, "y": 413, "fontSize": 10 },
+        { "id": "Hospital_zip_first", "page": 1, "x": 433, "y": 394, "fontSize": 10 },
+        { "id": "Hospital_zip_last", "page": 1, "x": 476, "y": 393, "fontSize": 10 },
+        { "id": "Location_and_condition_of_the_injury", "page": 1, "x": 150, "y": 390, "fontSize": 10 },
+        { "id": "Company_Name", "page": 1, "x": 150, "y": 345, "fontSize": 10 },
+        { "id": "Company_Address", "page": 1, "x": 150, "y": 325, "fontSize": 10 },
+        { "id": "Representative's_name", "page": 1, "x": 150, "y": 305, "fontSize": 10 },
+        { "id": "Year_of_proof_of_fact", "page": 1, "x": 100, "y": 365, "fontSize": 10 },
+        { "id": "Month_of_Proof_of_Fact", "page": 1, "x": 130, "y": 365, "fontSize": 10 },
+        { "id": "The_day_of_proof_of_facts", "page": 1, "x": 160, "y": 365, "fontSize": 10 },
+        { "id": "Company_tel_area", "page": 1, "x": 400, "y": 365, "fontSize": 10 },
+        { "id": "Company_tel_city", "page": 1, "x": 435, "y": 365, "fontSize": 10 },
+        { "id": "Company_tel_num", "page": 1, "x": 470, "y": 365, "fontSize": 10 },
+        { "id": "Company_zip_first", "page": 1, "x": 400, "y": 345, "fontSize": 10 },
+        { "id": "Company_zip_last", "page": 1, "x": 435, "y": 345, "fontSize": 10 },
+        { "id": "Company_name_and_representative's_name", "page": 1, "x": 150, "y": 260, "fontSize": 10 },
+        { "id": "The_person's_affiliated_company_tel_area", "page": 1, "x": 400, "y": 260, "fontSize": 10 },
+        { "id": "The_person's_affiliated_company_tel_city", "page": 1, "x": 435, "y": 260, "fontSize": 10 },
+        { "id": "The_person's_affiliated_company_tel_num", "page": 1, "x": 470, "y": 260, "fontSize": 10 },
+        { "id": "Area_of_the_Labor_Standards_Inspection_Office", "page": 1, "x": 100, "y": 190, "fontSize": 11 },
+        { "id": "Claim_Hospital_name", "page": 1, "x": 100, "y": 170, "fontSize": 10 },
+        { "id": "claimant_zip_first", "page": 1, "x": 271, "y": 187, "fontSize": 10 },
+        { "id": "claimant_zip_last", "page": 1, "x": 312, "y": 187, "fontSize": 10 },
+        { "id": "Year_of_entry", "page": 1, "x": 230, "y": 190, "fontSize": 10 },
+        { "id": "Month_of_entry", "page": 1, "x": 260, "y": 190, "fontSize": 10 },
+        { "id": "Date_of_entry", "page": 1, "x": 290, "y": 190, "fontSize": 10 },
+        { "id": "claimant_tel_area", "page": 1, "x": 400, "y": 190, "fontSize": 10 },
+        { "id": "claimant_tel_city", "page": 1, "x": 435, "y": 190, "fontSize": 10 },
+        { "id": "claimant_tel_num", "page": 1, "x": 470, "y": 190, "fontSize": 10 },
+        { "id": "Claimant's_address", "page": 1, "x": 350, "y": 130, "fontSize": 10 },
+        { "id": "Claimant's_name", "page": 1, "x": 350, "y": 110, "fontSize": 11 }
+      ]
     },
     {
       "page": 2,
       "name": "back",
-      "fields": [{
-    "id": "Multiple",
-    "page": 2,
-    "x": 39,
-    "y": 766,
-    "fontSize": 10
-  },
-  {
-    "id": "Number_of_workplaces",
-    "page": 2,
-    "x": 147,
-    "y": 742,
-    "fontSize": 10
-  },
-  {
-    "id": "Special_Insurance_num",
-    "page": 2,
-    "x": 31,
-    "y": 696,
-    "fontSize": 10
-  },
-  {
-    "id": "Name_of_Special_Member_Organization",
-    "page": 2,
-    "x": 383,
-    "y": 731,
-    "fontSize": 10
-  },
-  {
-    "id": "Year_of_joining",
-    "page": 2,
-    "x": 358,
-    "y": 707,
-    "fontSize": 10
-  },
-  {
-    "id": "Joining_Month",
-    "page": 2,
-    "x": 451,
-    "y": 707,
-    "fontSize": 10
-  },
-  {
-    "id": "Joining_date",
-    "page": 2,
-    "x": 511,
-    "y": 705,
-    "fontSize": 10
-  }]
+      "fields": [
+        { "id": "Multiple", "page": 2, "x": 100, "y": 50, "fontSize": 10 },
+        { "id": "Number_of_workplaces", "page": 2, "x": 200, "y": 50, "fontSize": 10 },
+        { "id": "Special_Insurance_num", "page": 2, "x": 300, "y": 50, "fontSize": 10 },
+        { "id": "Name_of_Special_Member_Organization", "page": 2, "x": 400, "y": 50, "fontSize": 10 },
+        { "id": "Year_of_joining", "page": 2, "x": 480, "y": 50, "fontSize": 10 },
+        { "id": "Joining_Month", "page": 2, "x": 510, "y": 50, "fontSize": 10 },
+        { "id": "Joining_date", "page": 2, "x": 540, "y": 50, "fontSize": 10 }
+      ]
     }
   ]
 }
-
