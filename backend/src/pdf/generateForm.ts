@@ -6,61 +6,64 @@ import path from 'path';
 // --- フォント設定 ---
 const FONT_FILENAME = 'IPAexGothic.ttf';
 
-// --- アセットファイル（templates/fonts/schemas）の多段自動探索関数 ---
-function getAssetPath(subFolder: string, fileName: string): string {
-  const candidatePaths = [
-    // 1. 同階層・相対階層
-    path.join(__dirname, subFolder, fileName),
-    path.join(__dirname, '..', subFolder, fileName),
-    path.join(__dirname, fileName),
-    path.join(__dirname, '..', fileName),
-    // 2. src ディレクトリ配下
-    path.join(process.cwd(), 'src', 'pdf', subFolder, fileName),
-    path.join(process.cwd(), 'src', 'pdf', fileName),
-    path.join(process.cwd(), 'src', 'schemas', fileName),
-    path.join(process.cwd(), 'src', subFolder, fileName),
-    // 3. backend/src ディレクトリ配下
-    path.join(process.cwd(), 'backend', 'src', 'pdf', subFolder, fileName),
-    path.join(process.cwd(), 'backend', 'src', 'schemas', fileName),
-    path.join(process.cwd(), 'backend', 'src', subFolder, fileName),
-    // 4. カレントディレクトリ配下
-    path.join(process.cwd(), subFolder, fileName),
-    path.join(process.cwd(), fileName),
+// --- プロジェクト全体の万能ファイル探索関数 ---
+function findFilePath(fileName: string, extraSubFolders: string[] = []): string | null {
+  const subFolders = ['', 'templates', 'fonts', 'schemas', 'pdf', 'src/pdf', 'src/schemas', ...extraSubFolders];
+  const bases = [
+    __dirname,
+    path.join(__dirname, '..'),
+    path.join(__dirname, '../..'),
+    process.cwd(),
+    path.join(process.cwd(), 'src'),
+    path.join(process.cwd(), 'src/pdf'),
+    path.join(process.cwd(), 'src/schemas'),
+    path.join(process.cwd(), 'backend'),
+    path.join(process.cwd(), 'backend/src'),
+    path.join(process.cwd(), 'backend/src/pdf'),
+    path.join(process.cwd(), 'backend/src/schemas'),
+    path.join(process.cwd(), 'dist'),
+    path.join(process.cwd(), 'dist/pdf'),
   ];
 
-  for (const p of candidatePaths) {
-    if (fs.existsSync(p)) {
-      return p;
+  for (const base of bases) {
+    for (const sub of subFolders) {
+      const fullPath = path.join(base, sub, fileName);
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return fullPath;
+      }
     }
   }
-
-  throw new Error(
-    `[アセット読み込みエラー] ファイルが見つかりません: ${subFolder}/${fileName}\n` +
-    `探索したパス:\n` + candidatePaths.map(p => `  - ${p}`).join('\n')
-  );
+  return null;
 }
 
-// --- JSON設定ファイルの安全な読み込み関数 ---
+// --- JSON設定の確実なロード ---
 function loadJsonConfig(fileName: string): any {
-  const subFolders = ['schemas', 'pdf', 'templates', ''];
-  for (const sub of subFolders) {
+  // 1. require によるインポート試行
+  try {
+    if (fileName === 'form5.json') return require('./form5.json');
+    if (fileName === 'form6.json') return require('./form6.json');
+  } catch (e) {}
+  try {
+    if (fileName === 'form5.json') return require('../schemas/form5.json');
+    if (fileName === 'form6.json') return require('../schemas/form6.json');
+  } catch (e) {}
+
+  // 2. ファイルシステムからの安全探索
+  const jsonPath = findFilePath(fileName, ['schemas', 'pdf']);
+  if (jsonPath) {
     try {
-      const jsonPath = getAssetPath(sub, fileName);
-      if (fs.existsSync(jsonPath)) {
-        const content = fs.readFileSync(jsonPath, 'utf-8');
-        const parsed = JSON.parse(content);
-        console.log(`[JSON Loaded Successfully] ${fileName} from ${jsonPath}`);
-        return parsed;
-      }
+      const content = fs.readFileSync(jsonPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      console.log(`[JSON Success] Loaded ${fileName} from ${jsonPath}`);
+      return parsed;
     } catch (e) {
-      // 探索を継続
+      console.error(`[JSON Parse Error] ${fileName}:`, e);
     }
   }
-  console.error(`[JSON Load Warning] ${fileName} が読み込めなかったため空設定を使用します`);
+  console.error(`[JSON CRITICAL WARNING] ${fileName} が読み込めませんでした。`);
   return { pages: [] };
 }
 
-// 設定JSONの読み込み
 const form5Json = loadJsonConfig('form5.json');
 const form6Json = loadJsonConfig('form6.json');
 
@@ -73,9 +76,7 @@ try {
   try {
     const m5 = require('./form5Mapper');
     mapForm5Data = m5.mapForm5Data || m5.default || m5;
-  } catch (e2) {
-    mapForm5Data = null;
-  }
+  } catch (e2) {}
 }
 
 let mapForm6Data: any = null;
@@ -86,12 +87,54 @@ try {
   try {
     const m6 = require('./form6Mapper');
     mapForm6Data = m6.mapForm6Data || m6.default || m6;
-  } catch (e2) {
-    mapForm6Data = null;
-  }
+  } catch (e2) {}
 }
 
-// --- 病院・薬局名の末尾整形関数 ---
+// --- 入力データのパース・正規化ヘルパー ---
+function normalizeInput(input: any): any {
+  if (!input) return {};
+  if (typeof input === 'object') return input;
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return typeof parsed === 'object' ? parsed : { inputText: input };
+    } catch (e) {
+      return { inputText: input };
+    }
+  }
+  return {};
+}
+
+// --- 深層データ値抽出ヘルパー（データ構造の食い違いを完全吸収） ---
+function extractValue(data: any, fieldId: string): any {
+  if (!data || typeof data !== 'object') return undefined;
+
+  // 1. 完全一致
+  if (data[fieldId] !== undefined && data[fieldId] !== null && data[fieldId] !== '') {
+    return data[fieldId];
+  }
+
+  // 2. 大文字小文字・空白無視のキーマッチング
+  const targetKey = fieldId.trim().toLowerCase();
+  for (const key of Object.keys(data)) {
+    if (key.trim().toLowerCase() === targetKey) {
+      const val = data[key];
+      if (val !== undefined && val !== null && val !== '') return val;
+    }
+  }
+
+  // 3. ネストされたオブジェクト内部の探索
+  const subKeys = ['data', 'formData', 'values', 'fields', 'input', 'inputText', 'form5', 'form6', 'hospital', 'pharmacy'];
+  for (const sub of subKeys) {
+    if (data[sub] && typeof data[sub] === 'object') {
+      const nestedVal = extractValue(data[sub], fieldId);
+      if (nestedVal !== undefined) return nestedVal;
+    }
+  }
+
+  return undefined;
+}
+
 function cleanHospitalName(name: string): string {
   if (!name) return '';
   return name.replace(/(病院|診療所|薬局|クリニック)$/g, '').trim();
@@ -116,10 +159,13 @@ const FIELD_RULES: Record<string, { renderType: 'grid' | 'standard', pitch?: num
   'Hospital_zip_last': { renderType: 'standard', fontSize: 11 }
 };
 
-// --- PDFページにデータを描画する汎用ヘルパー ---
+// --- PDF描画の共通コアロジック ---
 async function renderPdfDocument(templateFileName: string, jsonConfig: any, data: any): Promise<Uint8Array> {
-  const pdfPath = getAssetPath('templates', templateFileName);
-  const fontPath = getAssetPath('fonts', FONT_FILENAME);
+  const pdfPath = findFilePath(templateFileName, ['templates']);
+  const fontPath = findFilePath(FONT_FILENAME, ['fonts']);
+
+  if (!pdfPath) throw new Error(`[テンプレート不達] ${templateFileName} が見つかりません`);
+  if (!fontPath) throw new Error(`[フォント不達] ${FONT_FILENAME} が見つかりません`);
 
   const pdfBytes = fs.readFileSync(pdfPath);
   const fontBytes = fs.readFileSync(fontPath);
@@ -130,17 +176,19 @@ async function renderPdfDocument(templateFileName: string, jsonConfig: any, data
 
   const pages = pdfDoc.getPages();
 
-  // 所属会社電話番号の下4桁抽出
-  if (data["The_person's_affiliated_company_tel_num"]) {
-    const rawTel = String(data["The_person's_affiliated_company_tel_num"]);
+  // 電話番号と病院名の前処理
+  const telVal = extractValue(data, "The_person's_affiliated_company_tel_num");
+  if (telVal) {
+    const rawTel = String(telVal);
     if (rawTel.length > 4) {
       data["The_person's_affiliated_company_tel_num"] = rawTel.slice(-4);
     }
   }
 
-  // 病院名の整形
-  const hospitalRaw = data.Claim_Hospital_name || data.Hospital_name || '';
-  data.Claim_Hospital_name = cleanHospitalName(hospitalRaw);
+  const hospitalRaw = extractValue(data, 'Claim_Hospital_name') || extractValue(data, 'Hospital_name') || '';
+  if (hospitalRaw) {
+    data.Claim_Hospital_name = cleanHospitalName(String(hospitalRaw));
+  }
 
   if (jsonConfig && Array.isArray(jsonConfig.pages)) {
     for (const pageConfig of jsonConfig.pages) {
@@ -150,12 +198,7 @@ async function renderPdfDocument(templateFileName: string, jsonConfig: any, data
       const page = pages[pageIndex];
 
       for (const field of pageConfig.fields) {
-        let value = data[field.id];
-        if (value === undefined || value === null) {
-          const foundKey = Object.keys(data).find(k => k.trim().toLowerCase() === field.id.trim().toLowerCase());
-          if (foundKey) value = data[foundKey];
-        }
-
+        const value = extractValue(data, field.id);
         if (value === undefined || value === null || value === '') continue;
 
         const strValue = String(value);
@@ -188,103 +231,113 @@ async function renderPdfDocument(templateFileName: string, jsonConfig: any, data
   return await pdfDoc.save();
 }
 
-// --- 様式第5号 生成処理（病院用・薬局用の最大2枚を出力） ---
+// --- 様式第5号 生成処理 ---
 export async function generateForm5PDF(formData: any): Promise<Array<{ filename: string; buffer: Uint8Array }>> {
-  let rawData: any = formData;
-  if (typeof formData === 'string') {
-    try {
-      rawData = JSON.parse(formData);
-    } catch (e) {
-      rawData = { inputText: formData };
-    }
-  }
+  const rawData = normalizeInput(formData);
+  let mappedData: any = {};
 
-  let data = rawData;
   if (typeof mapForm5Data === 'function') {
     try {
-      data = mapForm5Data(rawData);
+      mappedData = mapForm5Data(rawData) || {};
     } catch (e) {
       console.warn('form5Mapper execution skipped:', e);
     }
   }
 
+  const combinedData = { ...rawData, ...mappedData };
   const results: Array<{ filename: string; buffer: Uint8Array }> = [];
 
   // 1. 病院用の生成
   try {
-    const hospitalBuffer = await renderPdfDocument('form5.pdf', form5Json, data);
+    const hospitalBuffer = await renderPdfDocument('form5.pdf', form5Json, combinedData);
     results.push({ filename: '様式5号(病院用).pdf', buffer: hospitalBuffer });
   } catch (e) {
-    console.error('Hospital Form5 generation error:', e);
+    console.error('Form5 Hospital generation error:', e);
   }
 
-  // 2. 薬局用の生成（テンプレートが存在する場合）
+  // 2. 薬局用の生成（テンプレート指定またはフォールバック）
   try {
-    const pharmacyTemplatePath = getAssetPath('templates', 'form5_pharmacy.pdf');
-    if (fs.existsSync(pharmacyTemplatePath)) {
-      const pharmacyBuffer = await renderPdfDocument('form5_pharmacy.pdf', form5Json, data);
-      results.push({ filename: '様式5号(薬局用).pdf', buffer: pharmacyBuffer });
-    }
+    const pharmacyTemplate = findFilePath('form5_pharmacy.pdf', ['templates']) ? 'form5_pharmacy.pdf' : 'form5.pdf';
+    const pharmacyBuffer = await renderPdfDocument(pharmacyTemplate, form5Json, { ...combinedData, formType: 'pharmacy' });
+    results.push({ filename: '様式5号(薬局用).pdf', buffer: pharmacyBuffer });
   } catch (e) {
-    // 薬局用テンプレートが無い場合はスキップ
+    console.error('Form5 Pharmacy generation error:', e);
   }
 
   return results;
 }
 
-// --- 様式第6号 生成処理（1回目・2回目の最大2枚を出力） ---
+// --- 様式第6号 生成処理 ---
 export async function generateForm6PDF(form5InputText: any, form6InputText: any): Promise<Array<{ filename: string; buffer: Uint8Array }>> {
-  let parsed5 = typeof form5InputText === 'string' ? tryParseJson(form5InputText) : form5InputText;
-  let parsed6 = typeof form6InputText === 'string' ? tryParseJson(form6InputText) : form6InputText;
+  const parsed5 = normalizeInput(form5InputText);
+  const parsed6 = normalizeInput(form6InputText);
 
-  let mappedResult: any = null;
+  let mapped: any = null;
   if (typeof mapForm6Data === 'function') {
     try {
-      mappedResult = mapForm6Data(parsed5, parsed6);
+      mapped = mapForm6Data(parsed5, parsed6);
     } catch (e) {
       console.warn('form6Mapper execution skipped:', e);
     }
   }
 
+  let data1: any = null;
+  let data2: any = null;
+
+  if (Array.isArray(mapped)) {
+    data1 = mapped[0];
+    data2 = mapped[1];
+  } else if (mapped && typeof mapped === 'object') {
+    if (Array.isArray(mapped.transfers)) {
+      data1 = mapped.transfers[0];
+      data2 = mapped.transfers[1];
+    } else if (mapped.form6_1 || mapped.form6_2) {
+      data1 = mapped.form6_1 || mapped;
+      data2 = mapped.form6_2;
+    } else if (mapped.transfer1 || mapped.transfer2) {
+      data1 = mapped.transfer1 || mapped;
+      data2 = mapped.transfer2;
+    } else {
+      data1 = mapped;
+    }
+  }
+
+  // 1回目のデータ補完
+  const combinedData1 = { ...parsed5, ...parsed6, ...data1 };
+
+  // 2回目のデータ判定・補完
+  if (!data2) {
+    if (Array.isArray(parsed6)) {
+      data2 = parsed6[1];
+    } else if (parsed6.transfer2 || parsed6.secondTransfer || parsed6.hospital2 || parsed6.second_hospital) {
+      data2 = parsed6.transfer2 || parsed6.secondTransfer || parsed6.hospital2 || parsed6.second_hospital;
+    }
+  }
+
   const results: Array<{ filename: string; buffer: Uint8Array }> = [];
 
-  // 配列で渡された場合（1回目転院・2回目転院）
-  if (Array.isArray(mappedResult)) {
-    if (mappedResult.length > 0 && mappedResult[0]) {
-      const buf1 = await renderPdfDocument('form6.pdf', form6Json, mappedResult[0]);
-      results.push({ filename: '様式6号(1回目).pdf', buffer: buf1 });
-    }
-    if (mappedResult.length > 1 && mappedResult[1]) {
-      const buf2 = await renderPdfDocument('form6.pdf', form6Json, mappedResult[1]);
-      results.push({ filename: '様式6号(2回目).pdf', buffer: buf2 });
-    }
-  } else {
-    // 単一オブジェクトの場合
-    const data = mappedResult || { ...parsed5, ...parsed6 };
-    
-    // 1回目転院
-    const buf1 = await renderPdfDocument('form6.pdf', form6Json, data);
+  // 1回目転院の生成
+  try {
+    const buf1 = await renderPdfDocument('form6.pdf', form6Json, combinedData1);
     results.push({ filename: '様式6号(1回目).pdf', buffer: buf1 });
+  } catch (e) {
+    console.error('Form6 (1st) generation error:', e);
+  }
 
-    // 2回目転院用データが存在する場合
-    if (data.transfer2 || data.secondTransfer || data.hasSecondTransfer) {
-      const transfer2Data = data.transfer2 || data.secondTransfer || data;
-      const buf2 = await renderPdfDocument('form6.pdf', form6Json, transfer2Data);
+  // 2回目転院の生成（データが存在する場合、または2枚出力要求時）
+  if (data2 && typeof data2 === 'object') {
+    try {
+      const combinedData2 = { ...parsed5, ...parsed6, ...data2 };
+      const buf2 = await renderPdfDocument('form6.pdf', form6Json, combinedData2);
       results.push({ filename: '様式6号(2回目).pdf', buffer: buf2 });
+    } catch (e) {
+      console.error('Form6 (2nd) generation error:', e);
     }
   }
 
   return results;
 }
 
-function tryParseJson(text: string): any {
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    return { inputText: text };
-  }
-}
-
-// routes/pdf.ts 等のインポート用エイリアス
+// routes インポート用エイリアス
 export { generateForm5PDF as generateForm5PDFs };
 export { generateForm6PDF as generateForm6PDFs };
