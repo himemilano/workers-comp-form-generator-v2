@@ -67,26 +67,26 @@ function loadJsonConfig(fileName: string): any {
 const form5Json = loadJsonConfig('form5.json');
 const form6Json = loadJsonConfig('form6.json');
 
-// マッパーモジュールの動的読み込み
+// --- マッパーモジュールの確実な読み込み (buildForm5Data / buildForm6Data 対応) ---
 let mapForm5Data: any = null;
 try {
   const m5 = require('../rules/mappers/form5Mapper');
-  mapForm5Data = m5.mapForm5Data || m5.default || m5;
+  mapForm5Data = m5.buildForm5Data || m5.mapForm5Data || m5.default || m5;
 } catch (e) {
   try {
     const m5 = require('./form5Mapper');
-    mapForm5Data = m5.mapForm5Data || m5.default || m5;
+    mapForm5Data = m5.buildForm5Data || m5.mapForm5Data || m5.default || m5;
   } catch (e2) {}
 }
 
 let mapForm6Data: any = null;
 try {
   const m6 = require('../rules/mappers/form6Mapper');
-  mapForm6Data = m6.mapForm6Data || m6.default || m6;
+  mapForm6Data = m6.buildForm6Data || m6.mapForm6Data || m6.default || m6;
 } catch (e) {
   try {
     const m6 = require('./form6Mapper');
-    mapForm6Data = m6.mapForm6Data || m6.default || m6;
+    mapForm6Data = m6.buildForm6Data || m6.mapForm6Data || m6.default || m6;
   } catch (e2) {}
 }
 
