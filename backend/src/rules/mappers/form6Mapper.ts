@@ -7,7 +7,7 @@ import { trimFacilitySuffix } from "../name";
 import { parseInjuryTime } from "../time";
 
 /**
- * ユーザー入力テキストの連想配列を schemas/form6.json の ID 一覧へ正確にバインドする
+ * ユーザー入力テキストの連想配列を schemas/form6.json の ID 一覧（全66項目）へ正確にバインドする
  */
 export function buildForm6Data(
   rawInput: Record<string, string>,
@@ -39,6 +39,9 @@ export function buildForm6Data(
   );
   const fillDateYmd = parseJapaneseDate(
     rawInput["記入日(例: 令和8年8月30日)"] || rawInput["記入日"] || ""
+  );
+  const joiningDateYmd = parseJapaneseDate(
+    rawInput["その加入日(和暦で入力)"] || rawInput["加入日"] || ""
   );
 
   const gender = convertGender(
@@ -72,9 +75,9 @@ export function buildForm6Data(
   const multipleRaw = rawInput["その他就業先が有る場合(有と入力、無ければ空欄)"] || rawInput["その他就業先"] || "";
   const multipleMark = multipleRaw === "有" || multipleRaw === "〇" ? "〇" : multipleRaw;
 
-  // form6.json の 全 field id と完全一致するオブジェクトを出力
+  // form6.json の 全 66 個の field id と完全一致するオブジェクトを出力
   return {
-    // --- 表面 (Page 1) ---
+    // --- 表面 (Page 1: 59項目) ---
     "Area_of_the_Labor_Standards_Inspection_Office": rawInput["所轄労働基準監督署"] || "",
     "Form_number": "6",
     "Claim_Hospital_name": rawInput["請求先病院名"] || rawInput["受診病院名"] || "",
@@ -106,7 +109,6 @@ export function buildForm6Data(
     "injury_day": injuryYmd.day,
     "injury_time_am": timeInfo.amMark,
     "injury_time_pm": timeInfo.pmMark,
-    "disaster_hour": timeInfo.hour,
     "disaster_minute": timeInfo.minute,
     "accident_detail": rawInput["災害の原因と発生状況"] || rawInput["災害の原因及び発生状況"] || "",
 
@@ -148,13 +150,13 @@ export function buildForm6Data(
     "Postal_code_first_of_the_hospital_after_payment": t2Zip.first,
     "Postal_code_last_of_the_hospital_after_payment": t2Zip.last,
 
-    // --- 裏面 (Page 2) ---
+    // --- 裏面 (Page 2: 7項目) ---
     "Multiple": multipleMark,
     "Number_of_workplaces": rawInput["表面以外の就業先の数(数字のみ)"] || rawInput["表面以外の就業先の数"] || "",
     "Special_Insurance_num": laborIns.full,
     "Name_of_Special_Member_Organization": rawInput["労働保険事務組合等の名称"] || rawInput["その労働保険事務組合又は特別加入団体の名称"] || "",
-    "Year_of_joining": "",
-    "Joining_Month": "",
-    "Joining_date": ""
+    "Year_of_joining": joiningDateYmd.year,
+    "Joining_Month": joiningDateYmd.month,
+    "Joining_date": joiningDateYmd.day
   };
 }
