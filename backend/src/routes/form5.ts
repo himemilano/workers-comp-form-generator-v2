@@ -169,7 +169,8 @@ router.post("/generate-pdf", async (req: Request, res: Response) => {
     const data = parseTextToData(rawText);
 
     // スキーマ & テンプレート読み込み
-    const schemaPath = path.resolve(__dirname, "../../../schemas/form5.json");
+    // スキーマ & テンプレート読み込み（dist/schemas を参照）
+    const schemaPath = path.join(__dirname, "../schemas/form5.json");
     const form5Config = JSON.parse(fs.readFileSync(schemaPath, "utf-8"));
     const pdfPath = path.resolve(__dirname, `../../../templates/${form5Config.template}`);
     const pdfBytes = fs.readFileSync(pdfPath);
