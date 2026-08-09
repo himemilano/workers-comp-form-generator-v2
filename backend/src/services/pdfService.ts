@@ -32,21 +32,20 @@ export class PdfService {
     formType: "5" | "6",
     mappedData: Record<string, string>
   ): Promise<Uint8Array> {
-    // 1. スキーマとテンプレートPDFの読み込み
-    const schemaPath = path.join(process.cwd(), `schemas/form${formType}.json`);
+    // 1. スキーマとテンプレートPDFの読み込み（dist/schemas, dist/templates を参照）
+    const schemaPath = path.join(__dirname, `../schemas/form${formType}.json`);
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: FormSchema = JSON.parse(schemaContent);
 
-    const templatePath = path.join(process.cwd(), `templates/${schema.template}`);
+    const templatePath = path.join(__dirname, `../templates/${schema.template}`);
     const templateBytes = await fs.readFile(templatePath);
 
     // 2. PDFドキュメントの読み込みとfontkitの登録
     const pdfDoc = await PDFDocument.load(templateBytes);
     pdfDoc.registerFontkit(fontkit);
 
-    // 3. IPAexGothicフォントの読み込み
-    // ※ backend/src/fonts/IPAexGothic.ttf を参照
-    const fontPath = path.join(process.cwd(), "backend/src/fonts/IPAexGothic.ttf");
+    // 3. IPAexGothicフォントの読み込み（dist/fonts を参照）
+    const fontPath = path.join(__dirname, "../fonts/IPAexGothic.ttf");
     const fontBytes = await fs.readFile(fontPath);
     const customFont = await pdfDoc.embedFont(fontBytes);
 
