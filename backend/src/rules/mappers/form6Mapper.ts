@@ -11,15 +11,13 @@ import {
 
 /**
  * 様式第6号専用データマッパー
- * 本人入力の14桁労働保険番号から「前2桁(府県)」と「残り12桁」を自動抽出し、専用のJSON IDへ割り当てます。
+ * Form5で保存された最新キー構造の生データ(rawInput)から正しく値を引き継ぎます。
  */
 export function buildForm6Data(rawInput: RawInputData): MappedFormData {
   const v = (key: string) => getVal(rawInput, key);
 
-  // 1. 本人入力の14桁労働保険番号を取得し、2桁と12桁に分割
-  const rawLaborIns = v("労働保険番号") || 
-                      v("労働保険番号(会社が入力)") || 
-                      (v("労働保険番号_府県(2桁)") + v("労働保険番号_所掌(1桁)") + v("労働保険番号_管轄(2桁)") + v("労働保険番号_基幹番号(6桁)") + v("労働保険番号_枝番号(3桁)"));
+  // 1. 本人入力の14桁労働保険番号を取得し、前2桁と残り12桁に分割
+  const rawLaborIns = v("労働保険番号(14桁・ハイフンなし)") || v("労働保険番号");
   const full14Digits = padGridValue(rawLaborIns, 14);
 
   const laborInsFirst = full14Digits.slice(0, 2);  // 前2桁（府県コード）
@@ -53,9 +51,9 @@ export function buildForm6Data(rawInput: RawInputData): MappedFormData {
     "Labor_insurance_No._first": laborInsFirst,
     "Labor_insurance_No._last":  laborInsLast,
 
-    // 【引き継ぎ・基本項目】
-    "sex": v("性別(男性は1、女性は3)"),
-    "Date_of_birth,Japanese_era": v("生年月日の和暦(昭和5, 平成7, 令和9)"),
+    // 【引き継ぎ・基本項目（新キー対応）】
+    "sex": v("性別(男性は1、女性は3と入力)"),
+    "Date_of_birth,Japanese_era": v("生年月日の和暦(昭和は5, 平成は7, 令和は9と数字のみ入力)"),
     "date_of_birth": `${birthYmd.year}${birthYmd.month}${birthYmd.day}`,
     "Date_of_injury,Japanese_era": "9",
     "Date_of_injury": `${injuryYmd.year}${injuryYmd.month}${injuryYmd.day}`,
@@ -72,7 +70,7 @@ export function buildForm6Data(rawInput: RawInputData): MappedFormData {
     "Personal_address": cityStr,
     "Job_type": v("職種"),
 
-    "accident_detail": wrapText(v("災害の原因と発生状況"), 30),
+    "accident_detail": wrapText(v("災害の原因と発生状況(詳しく)"), 30),
     "Location_and_condition_of_the_injury": wrapText(v("傷病の部位及び状態"), 25),
 
     "Company_Name": v("証明会社名(事業の名称)"),
@@ -97,7 +95,7 @@ export function buildForm6Data(rawInput: RawInputData): MappedFormData {
     "Claimant's_address": fullAddress,
     "Claimant's_name": workerName,
 
-    // Form 6 特有項目（追加入力分があれば反映）
+    // Form 6 特有項目
     "Medical_expenses_claimed": v("請求金額") || "",
     "Bank_name": v("振込先銀行名") || "",
     "Branch_name": v("振込先支店名") || "",
