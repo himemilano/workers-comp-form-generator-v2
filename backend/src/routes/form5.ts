@@ -34,7 +34,7 @@ const LABEL_TO_KEY: Record<string, string> = {
   "記入日": "date_of_entry",
   "本人電話番号": "claimant_tel",
   "労働保険番号": "Labor_insurance_No.",
-  "負傷を確認した人の職名": "itle_of_the_person_verifying_the_facts",
+  "負傷を確認した人の職名": "Title_of_the_person_verifying_the_facts",
   "負傷を確認した人の氏名": "Name_of_the_person_who_confirmed_the_facts",
   "提出する会社名": "Company_Name",
   "提出する会社住所": "Company_Address",
@@ -146,7 +146,7 @@ function parseTextToData(rawText: string): Record<string, any> {
   }
   if (temp["date_of_entry"]) {
     const d = parseJapaneseDate(temp["date_of_entry"]);
-    if (d) { data["Year_of_entry"] = d.year; data["onth_of_entry"] = d.month; data["Date_of_entry"] = d.day; }
+    if (d) { data["Year_of_entry"] = d.year; data["Month_of_entry"] = d.month; data["Date_of_entry"] = d.day; }
   }
   if (temp["date_of_joining"]) {
     const d = parseJapaneseDate(temp["date_of_joining"]);
