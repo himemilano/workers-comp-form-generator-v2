@@ -11,15 +11,13 @@ import {
 
 /**
  * 様式第5号専用データマッパー
- * 本人入力の14桁労働保険番号をそのままLabor_insurance_No.へ格納し、各枠サイズに合わせて整列・改行を行います。
+ * 入力ひな型の最新キー名に合わせてデータを抽出し、Form5用JSON IDへ割り当てます。
  */
 export function buildForm5Data(rawInput: RawInputData): MappedFormData {
   const v = (key: string) => getVal(rawInput, key);
 
-  // 1. 労働保険番号（14桁単一文字列として取得・半角14桁揃え）
-  const rawLaborIns = v("労働保険番号") || 
-                      v("労働保険番号(会社が入力)") || 
-                      (v("労働保険番号_府県(2桁)") + v("労働保険番号_所掌(1桁)") + v("労働保険番号_管轄(2桁)") + v("労働保険番号_基幹番号(6桁)") + v("労働保険番号_枝番号(3桁)"));
+  // 1. 労働保険番号（14桁数字を半角揃え）
+  const rawLaborIns = v("労働保険番号(14桁・ハイフンなし)") || v("労働保険番号");
   const fullLaborIns = padGridValue(rawLaborIns, 14);
 
   // 2. 郵便番号・電話番号の分解
@@ -34,7 +32,7 @@ export function buildForm5Data(rawInput: RawInputData): MappedFormData {
 
   const compZip      = parseZip(v("証明会社郵便番号(例: 604-8130)"));
   const compPhone    = parsePhone(v("証明会社電話番号(例: 075-221-8800)"));
-  const affCompPhone = parsePhone(v("その会社の電話番号(例: 075-222-3333)"));
+  const affCompPhone = parsePhone(v("その会社の電話番号(例: 03-1234-5678)"));
 
   // 3. 日付分解
   const birthYmd       = parseFlexibleDate(v("生年月日(例: 55年5月15日→550515)"));
@@ -43,8 +41,8 @@ export function buildForm5Data(rawInput: RawInputData): MappedFormData {
   const fillDateYmd    = parseFlexibleDate(v("記入日(例: 令和8年8月30日)"));
   const joiningDateYmd = parseFlexibleDate(v("特別加入日(例: 令和5年4月1日)"));
 
-  // 4. 区分フラグ
-  const rawTimeType = v("負傷時刻区分(AM または PM)");
+  // 4. 区分フラグ（新キー対応）
+  const rawTimeType = v("負傷時刻区分(AM または PMと入力)");
   const isAM = rawTimeType.toUpperCase().includes("AM");
   const isPM = rawTimeType.toUpperCase().includes("PM");
 
@@ -64,15 +62,15 @@ export function buildForm5Data(rawInput: RawInputData): MappedFormData {
   const multipleRaw = v("その他就業先が有る場合(有と入力、無ければ空欄)");
   const multipleMark = multipleRaw === "有" ? "〇" : "";
 
-  // 6. 長文折返し
-  const wrappedAccidentDetail = wrapText(v("災害の原因と発生状況"), 30);
+  // 6. 長文折返し（新キー対応）
+  const wrappedAccidentDetail = wrapText(v("災害の原因と発生状況(詳しく)"), 30);
   const wrappedInjuryStatus   = wrapText(v("傷病の部位及び状態"), 25);
   const wrappedCompanyAddr    = wrapText(v("証明会社住所(事業場の所在地)"), 28);
 
   return {
     "Labor_insurance_No.": fullLaborIns,
-    "sex": v("性別(男性は1、女性は3)"),
-    "Date_of_birth,Japanese_era": v("生年月日の和暦(昭和5, 平成7, 令和9)"),
+    "sex": v("性別(男性は1、女性は3と入力)"),
+    "Date_of_birth,Japanese_era": v("生年月日の和暦(昭和は5, 平成は7, 令和は9と数字のみ入力)"),
     "date_of_birth": `${birthYmd.year}${birthYmd.month}${birthYmd.day}`,
     "Date_of_injury,Japanese_era": "9",
     "Date_of_injury": `${injuryYmd.year}${injuryYmd.month}${injuryYmd.day}`,
@@ -91,8 +89,8 @@ export function buildForm5Data(rawInput: RawInputData): MappedFormData {
 
     "time_am": isAM ? "〇" : "",
     "time_pm": isPM ? "〇" : "",
-    "disaster_hour": toHalfWidth(v("負傷時刻(時)")),
-    "disaster_minute": toHalfWidth(v("負傷時刻(分)")),
+    "disaster_hour": toHalfWidth(v("負傷時刻(時・数字のみ)")),
+    "disaster_minute": toHalfWidth(v("負傷時刻(分・数字のみ)")),
 
     "accident_detail": wrappedAccidentDetail,
 
