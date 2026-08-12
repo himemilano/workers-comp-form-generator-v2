@@ -45,7 +45,6 @@ export function parseZip(zipStr: string = ""): ParsedZip {
   if (parts.length >= 2) {
     return { first: parts[0], last: parts[1] };
   }
-  // ハイフンなし入力の場合のフォールバック
   const digits = cleaned.replace(/[^\d]/g, "");
   if (digits.length === 7) {
     return { first: digits.substring(0, 3), last: digits.substring(3, 7) };
@@ -74,14 +73,12 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
 
   let y = "", m = "", d = "";
 
-  // 6桁の数字のみ（例: 080829, 550515）
   const digits = cleaned.replace(/[^\d]/g, "");
   if (cleaned.length >= 6 && /^\d{6}$/.test(digits)) {
     y = digits.substring(0, 2);
     m = digits.substring(2, 4);
     d = digits.substring(4, 6);
   } else {
-    // "令和8年8月30日" や "8.8.30" 形式
     const kanjiMatch = cleaned.match(/(?:令和|平成|昭和)?\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
     if (kanjiMatch) {
       y = kanjiMatch[1];
@@ -97,9 +94,7 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
     }
   }
 
-  // ゼロを取り除く (例: "08" -> "8")
   const trimZero = (val: string) => val ? String(parseInt(val, 10)) : "";
-  // 逆に必ず2桁ゼロ埋めする (マス目印字用)
   const padZero = (val: string) => val ? String(parseInt(val, 10)).padStart(2, "0") : "00";
 
   return {
