@@ -132,7 +132,7 @@ export class PdfService {
           }
 
           const totalLines = wrappedLines.length;
-          let currentFontSize = field.fontSize || 9;
+          let currentFontSize = field.fontSize || 10;
           let currentLineHeight = field.lineHeight || 13;
 
           // 行数が多い場合はフォントと行間を微調整
