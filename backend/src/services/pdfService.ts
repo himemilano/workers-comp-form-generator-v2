@@ -33,16 +33,19 @@ export class PdfService {
     formType: "5" | "6",
     mappedData: Record<string, any>
   ): Promise<Buffer> {
+    // 1. スキーマ読み込み
     const schemaPath = path.join(__dirname, `../schemas/form${formType}.json`);
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: FormSchema = JSON.parse(schemaContent);
 
-    const templatePath = path.join(__dirname, `../templates/${schema.template}`);
+    // 2. テンプレートPDF読み込み（毎回確実に読み込む）
+    const templatePath = path.resolve(__dirname, `../templates/${schema.template}`);
     const templateBytes = await fs.readFile(templatePath);
 
     const pdfDoc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
     pdfDoc.registerFontkit(fontkit);
 
+    // 3. IPAexGothicフォントの読み込み
     const fontCandidates = [
       path.join(__dirname, "../fonts/IPAexGothic.ttf"),
       path.join(__dirname, "../../src/fonts/IPAexGothic.ttf"),
@@ -67,6 +70,7 @@ export class PdfService {
     const customFont = await pdfDoc.embedFont(fontBytes);
     const pages = pdfDoc.getPages();
 
+    // 4. スキーマに基づいて全フィールドを描画
     for (const pageConfig of schema.pages) {
       const pageIndex = (pageConfig.page || 1) - 1;
       const page = pages[pageIndex];
@@ -86,7 +90,7 @@ export class PdfService {
             page.drawText("〇", {
               x: field.x,
               y: field.y,
-              size: fontSize || 14,
+              size: fontSize || 12,
               font: customFont,
               color: rgb(0, 0, 0),
             });
@@ -114,7 +118,6 @@ export class PdfService {
         const strVal = String(val);
 
         if (field.maxChars || field.lineHeight || strVal.length > maxChars || strVal.includes("\n")) {
-          // 1. 47文字単位での自動分解（手動改行にも対応）
           const rawLines = strVal.split("\n");
           const wrappedLines: string[] = [];
 
@@ -128,18 +131,16 @@ export class PdfService {
             }
           }
 
-          // 2. 行数に応じたフォントサイズと行間の動的調整
           const totalLines = wrappedLines.length;
           let currentFontSize = field.fontSize || 9;
-          let currentLineHeight = field.lineHeight || 14;
+          let currentLineHeight = field.lineHeight || 13;
 
-          // 3行を超える場合は、枠内に収めるためにフォントサイズと行間をスケーリング
+          // 行数が多い場合はフォントと行間を微調整
           if (totalLines > 3) {
-            currentFontSize = Math.max(6.5, currentFontSize - (totalLines - 3) * 0.5);
-            currentLineHeight = Math.max(8.5, currentLineHeight - (totalLines - 3) * 1.1);
+            currentFontSize = Math.max(7, currentFontSize - (totalLines - 3) * 0.4);
+            currentLineHeight = Math.max(9, currentLineHeight - (totalLines - 3) * 1.0);
           }
 
-          // 3. 描画処理
           wrappedLines.forEach((subLine, lineIdx) => {
             page.drawText(subLine, {
               x: field.x,
