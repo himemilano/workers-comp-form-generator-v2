@@ -158,7 +158,6 @@ export class PdfService {
 
         // D. 長文で枠内に収まらない項目の動的縮小処理（最大30文字限界対応）
         if (AUTO_SCALE_FIELDS.includes(field.id) && strVal.length > 28) {
-          // 28文字を超えたら段階的にフォントサイズを縮小（最小7pt）
           fontSize = Math.max(7, fontSize * (28 / strVal.length));
         }
 
@@ -177,6 +176,3 @@ export class PdfService {
     return Buffer.from(outputUint8Array);
   }
 }
-  }
-}
-
