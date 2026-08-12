@@ -33,7 +33,6 @@ export class PdfService {
     formType: "5" | "6",
     mappedData: Record<string, any>
   ): Promise<Buffer> {
-    // 1. スキーマとテンプレートPDFの読み込み（dist/schemas, dist/templates 等を参照）
     const schemaPath = path.join(__dirname, `../schemas/form${formType}.json`);
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: FormSchema = JSON.parse(schemaContent);
@@ -41,11 +40,9 @@ export class PdfService {
     const templatePath = path.join(__dirname, `../templates/${schema.template}`);
     const templateBytes = await fs.readFile(templatePath);
 
-    // 2. PDFドキュメントの読み込みとfontkitの登録
     const pdfDoc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
     pdfDoc.registerFontkit(fontkit);
 
-    // 3. IPAexGothicフォントの読み込み
     const fontCandidates = [
       path.join(__dirname, "../fonts/IPAexGothic.ttf"),
       path.join(__dirname, "../../src/fonts/IPAexGothic.ttf"),
@@ -70,7 +67,6 @@ export class PdfService {
     const customFont = await pdfDoc.embedFont(fontBytes);
     const pages = pdfDoc.getPages();
 
-    // 4. スキーマに基づいて全フィールドを描画
     for (const pageConfig of schema.pages) {
       const pageIndex = (pageConfig.page || 1) - 1;
       const page = pages[pageIndex];
@@ -113,31 +109,51 @@ export class PdfService {
           continue;
         }
 
-        // C. 複数行折り返し指定項目 (災因・発生状況や傷病状態等)
-        if (field.maxChars || field.lineHeight || typeof val === "string" && val.includes("\n")) {
-          const maxChars = field.maxChars || 47;
-          const lineHeight = field.lineHeight || 16;
-          const lines = String(val).split("\n");
-          let lineIdx = 0;
+        // C. 長文・複数行折り返し指定項目（災害の原因と発生状況等）
+        const maxChars = field.maxChars || 47;
+        const strVal = String(val);
 
-          for (const line of lines) {
-            for (let i = 0; i < line.length; i += maxChars) {
-              const subLine = line.substring(i, i + maxChars);
-              page.drawText(subLine, {
-                x: field.x,
-                y: field.y - lineIdx * lineHeight,
-                size: fontSize,
-                font: customFont,
-                color: rgb(0, 0, 0),
-              });
-              lineIdx++;
+        if (field.maxChars || field.lineHeight || strVal.length > maxChars || strVal.includes("\n")) {
+          // 1. 47文字単位での自動分解（手動改行にも対応）
+          const rawLines = strVal.split("\n");
+          const wrappedLines: string[] = [];
+
+          for (const line of rawLines) {
+            if (line.length === 0) {
+              wrappedLines.push("");
+            } else {
+              for (let i = 0; i < line.length; i += maxChars) {
+                wrappedLines.push(line.substring(i, i + maxChars));
+              }
             }
           }
+
+          // 2. 行数に応じたフォントサイズと行間の動的調整
+          const totalLines = wrappedLines.length;
+          let currentFontSize = field.fontSize || 9;
+          let currentLineHeight = field.lineHeight || 14;
+
+          // 3行を超える場合は、枠内に収めるためにフォントサイズと行間をスケーリング
+          if (totalLines > 3) {
+            currentFontSize = Math.max(6.5, currentFontSize - (totalLines - 3) * 0.5);
+            currentLineHeight = Math.max(8.5, currentLineHeight - (totalLines - 3) * 1.1);
+          }
+
+          // 3. 描画処理
+          wrappedLines.forEach((subLine, lineIdx) => {
+            page.drawText(subLine, {
+              x: field.x,
+              y: field.y - lineIdx * currentLineHeight,
+              size: currentFontSize,
+              font: customFont,
+              color: rgb(0, 0, 0),
+            });
+          });
           continue;
         }
 
         // D. 通常テキスト描画
-        page.drawText(String(val), {
+        page.drawText(strVal, {
           x: field.x,
           y: field.y,
           size: fontSize,
@@ -147,8 +163,8 @@ export class PdfService {
       }
     }
 
-    // 5. PDFの書き出し (Buffer型で返却)
     const outputUint8Array = await pdfDoc.save();
     return Buffer.from(outputUint8Array);
   }
 }
+
