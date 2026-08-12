@@ -25,6 +25,14 @@ export interface FormSchema {
   }>;
 }
 
+/**
+ * 枠内に収めるために文字数超過時に動的にフォントを縮小するJSON IDリスト（最大30文字限界）
+ */
+const AUTO_SCALE_FIELDS = [
+  "Company_name_and_representative's_name",
+  "Claimant's_address",
+];
+
 export class PdfService {
   /**
    * マッピング済みのデータとスキーマを元にPDFを生成する
@@ -38,7 +46,7 @@ export class PdfService {
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: FormSchema = JSON.parse(schemaContent);
 
-    // 2. テンプレートPDF読み込み（毎回確実に読み込む）
+    // 2. テンプレートPDF読み込み
     const templatePath = path.resolve(__dirname, `../templates/${schema.template}`);
     const templateBytes = await fs.readFile(templatePath);
 
@@ -82,7 +90,8 @@ export class PdfService {
           continue;
         }
 
-        const fontSize = field.fontSize || 10;
+        let fontSize = field.fontSize || 10;
+        const strVal = String(val);
 
         // A. 丸印 (〇) 描画
         if (field.type === "circle" || field.id.startsWith("time_")) {
@@ -100,7 +109,7 @@ export class PdfService {
 
         // B. マス目印字 (pitch 指定あり)
         if (field.pitch) {
-          const cleanText = String(val).replace(/-/g, "");
+          const cleanText = strVal.replace(/-/g, "");
           cleanText.split("").forEach((char, idx) => {
             page.drawText(char, {
               x: field.x + idx * field.pitch!,
@@ -113,11 +122,13 @@ export class PdfService {
           continue;
         }
 
-        // C. 長文・複数行折り返し指定項目（災害の原因と発生状況等）
-        const maxChars = field.maxChars || 47;
-        const strVal = String(val);
+        // C. 災害の原因と発生状況 (accident_detail) 専用描画
+        // フォントサイズの縮小を行わず、48文字ごとに最大4行、14ptピッチで下へ移動
+        if (field.id === "accident_detail") {
+          const maxChars = field.maxChars || 48;
+          const lineHeight = field.lineHeight || 14;
+          const fixedFontSize = 10.5; // 固定フォントサイズ
 
-        if (field.maxChars || field.lineHeight || strVal.length > maxChars || strVal.includes("\n")) {
           const rawLines = strVal.split("\n");
           const wrappedLines: string[] = [];
 
@@ -131,21 +142,13 @@ export class PdfService {
             }
           }
 
-          const totalLines = wrappedLines.length;
-          let currentFontSize = field.fontSize || 10;
-          let currentLineHeight = field.lineHeight || 13;
-
-          // 行数が多い場合はフォントと行間を微調整
-          if (totalLines > 3) {
-            currentFontSize = Math.max(7, currentFontSize - (totalLines - 3) * 0.4);
-            currentLineHeight = Math.max(9, currentLineHeight - (totalLines - 3) * 1.0);
-          }
-
-          wrappedLines.forEach((subLine, lineIdx) => {
-            page.drawText(subLine, {
+          // 最大4行分だけ下方向へ固定幅で落として描画
+          const targetLines = wrappedLines.slice(0, 4);
+          targetLines.forEach((lineText, lineIdx) => {
+            page.drawText(lineText, {
               x: field.x,
-              y: field.y - lineIdx * currentLineHeight,
-              size: currentFontSize,
+              y: field.y - lineIdx * lineHeight,
+              size: fixedFontSize,
               font: customFont,
               color: rgb(0, 0, 0),
             });
@@ -153,7 +156,13 @@ export class PdfService {
           continue;
         }
 
-        // D. 通常テキスト描画
+        // D. 長文で枠内に収まらない項目の動的縮小処理（最大30文字限界対応）
+        if (AUTO_SCALE_FIELDS.includes(field.id) && strVal.length > 28) {
+          // 28文字を超えたら段階的にフォントサイズを縮小（最小7pt）
+          fontSize = Math.max(7, fontSize * (28 / strVal.length));
+        }
+
+        // E. 通常テキスト描画
         page.drawText(strVal, {
           x: field.x,
           y: field.y,
@@ -166,6 +175,8 @@ export class PdfService {
 
     const outputUint8Array = await pdfDoc.save();
     return Buffer.from(outputUint8Array);
+  }
+}
   }
 }
 
