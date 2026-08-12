@@ -1,105 +1,138 @@
-import { RawInputData } from "../../types/form";
+export interface ParsedDate {
+  year: string;
+  month: string;
+  day: string;
+  padded6: string; // マス目印字用の6桁（例: 080829）
+}
+
+export interface ParsedPhone {
+  area: string;
+  city: string;
+  num: string;
+}
+
+export interface ParsedZip {
+  first: string;
+  last: string;
+}
 
 /**
- * 全角英数字を半角に変換し、数字・英字以外の不要な記号を除去します
+ * 全角英数字・記号を半角に変換する
  */
-export function toHalfWidth(str: string): string {
-  if (!str) return "";
+export function toHalfWidth(str: string = ""): string {
   return str
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
-    .replace(/[^0-9a-zA-Z]/g, "");
+    .replace(/ー|−|―/g, "-")
+    .trim();
 }
 
 /**
- * rawInput から指定キーの値を取得（コロン「:」「：」がある場合はそれ以降の値を安全に抽出）
+ * キーバリューオブジェクトから値を取得する
  */
-export function getVal(rawInput: RawInputData, key: string): string {
-  const raw = rawInput[key] || "";
-  if (!raw) return "";
-  const colonIndex = Math.max(raw.indexOf("："), raw.indexOf(":"));
-  const value = colonIndex !== -1 ? raw.substring(colonIndex + 1) : raw;
-  return value.trim();
-}
-
-/**
- * マス目（OCR枠）用：指定桁数へゼロ埋め・フォーマット処理
- */
-export function padGridValue(val: string, length: number): string {
-  const clean = toHalfWidth(val);
-  if (!clean) return "".padStart(length, " ");
-  return clean.padStart(length, "0").slice(-length);
-}
-
-/**
- * 電話番号を市外局番・市内局番・加入者番号の3つの要素に分解します
- */
-export function parsePhone(phoneStr: string): { area: string; city: string; num: string } {
-  if (!phoneStr) {
-    return { area: "", city: "", num: "" };
+export function getVal(rawInput: Record<string, string>, key: string): string {
+  if (rawInput[key] !== undefined) {
+    return rawInput[key].trim();
   }
-  const clean = phoneStr.replace(/[^\d-]/g, "");
-  const parts = clean.split("-");
-  if (parts.length === 3) {
+  return "";
+}
+
+/**
+ * 郵便番号をハイフンで前半3桁・後半4桁に分解
+ */
+export function parseZip(zipStr: string = ""): ParsedZip {
+  const cleaned = toHalfWidth(zipStr);
+  const parts = cleaned.split("-").filter((p) => p !== "");
+  if (parts.length >= 2) {
+    return { first: parts[0], last: parts[1] };
+  }
+  // ハイフンなし入力の場合のフォールバック
+  const digits = cleaned.replace(/[^\d]/g, "");
+  if (digits.length === 7) {
+    return { first: digits.substring(0, 3), last: digits.substring(3, 7) };
+  }
+  return { first: "", last: "" };
+}
+
+/**
+ * 電話番号をハイフンで市外局番・市内局番・番号に分解
+ */
+export function parsePhone(phoneStr: string = ""): ParsedPhone {
+  const cleaned = toHalfWidth(phoneStr);
+  const parts = cleaned.split("-").filter((p) => p !== "");
+  if (parts.length >= 3) {
     return { area: parts[0], city: parts[1], num: parts[2] };
   }
-  const digits = toHalfWidth(phoneStr);
-  if (digits.length === 10) {
-    return { area: digits.slice(0, 3), city: digits.slice(3, 6), num: digits.slice(6) };
-  } else if (digits.length === 11) {
-    return { area: digits.slice(0, 3), city: digits.slice(3, 7), num: digits.slice(7) };
-  }
-  return { area: digits, city: "", num: "" };
+  return { area: "", city: "", num: "" };
 }
 
 /**
- * 郵便番号を 前3桁 - 後4桁 に分割します
+ * 様々な日付形式を分解（通常印字用は1桁そのまま、マス目用は6桁ゼロ埋め）
  */
-export function parseZip(zipStr: string): { first: string; last: string } {
-  const digits = toHalfWidth(zipStr);
-  if (!digits) {
-    return { first: "", last: "" };
+export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
+  const cleaned = toHalfWidth(dateStr);
+  if (!cleaned) return { year: "", month: "", day: "", padded6: "" };
+
+  let y = "", m = "", d = "";
+
+  // 6桁の数字のみ（例: 080829, 550515）
+  const digits = cleaned.replace(/[^\d]/g, "");
+  if (cleaned.length >= 6 && /^\d{6}$/.test(digits)) {
+    y = digits.substring(0, 2);
+    m = digits.substring(2, 4);
+    d = digits.substring(4, 6);
+  } else {
+    // "令和8年8月30日" や "8.8.30" 形式
+    const kanjiMatch = cleaned.match(/(?:令和|平成|昭和)?\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+    if (kanjiMatch) {
+      y = kanjiMatch[1];
+      m = kanjiMatch[2];
+      d = kanjiMatch[3];
+    } else {
+      const parts = cleaned.split(/[-./]/).filter((p) => p !== "");
+      if (parts.length >= 3) {
+        y = parts[0];
+        m = parts[1];
+        d = parts[2];
+      }
+    }
   }
+
+  // ゼロを取り除く (例: "08" -> "8")
+  const trimZero = (val: string) => val ? String(parseInt(val, 10)) : "";
+  // 逆に必ず2桁ゼロ埋めする (マス目印字用)
+  const padZero = (val: string) => val ? String(parseInt(val, 10)).padStart(2, "0") : "00";
+
   return {
-    first: digits.slice(0, 3),
-    last: digits.slice(3, 7)
+    year: trimZero(y),
+    month: trimZero(m),
+    day: trimZero(d),
+    padded6: (y && m && d) ? `${padZero(y)}${padZero(m)}${padZero(d)}` : ""
   };
 }
 
 /**
- * 日本語日付表記（和暦・数字・6桁形式）を 年・月・日 の要素に分解します
+ * 指定病院等名称から末尾の「病院・診療所・薬局・クリニック」を削除
  */
-export function parseFlexibleDate(dateStr: string): { year: string; month: string; day: string } {
-  if (!dateStr) return { year: "", month: "", day: "" };
-
-  const digits = toHalfWidth(dateStr);
-  
-  if (/^\d{6}$/.test(digits)) {
-    return {
-      year: digits.slice(0, 2),
-      month: digits.slice(2, 4),
-      day: digits.slice(4, 6)
-    };
-  }
-
-  const matches = dateStr.match(/(?:昭和|平成|令和)?\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-  if (matches) {
-    return {
-      year: matches[1].padStart(2, "0"),
-      month: matches[2].padStart(2, "0"),
-      day: matches[3].padStart(2, "0")
-    };
-  }
-
-  return { year: "", month: "", day: "" };
+export function stripHospitalSuffix(name: string = ""): string {
+  return name.replace(/(病院|診療所|薬局|クリニック)$/, "").trim();
 }
 
 /**
- * 長文テキストの枠超過防止：指定文字数ごとに \n（改行コード）を自動挿入します
+ * マス目印字用（指定桁数に合わせて空白埋め）
  */
-export function wrapText(text: string, maxCharsPerLine: number = 30): string {
+export function padGridValue(val: string = "", length: number): string {
+  const cleaned = toHalfWidth(val).replace(/[^\d]/g, "");
+  return cleaned.padEnd(length, " ");
+}
+
+/**
+ * 長文の自動折り返し
+ */
+export function wrapText(text: string = "", maxChars: number): string {
   if (!text) return "";
-  const cleanText = text.replace(/\r?\n/g, "");
-  const regex = new RegExp(`.{1,${maxCharsPerLine}}`, "g");
-  const lines = cleanText.match(regex);
-  return lines ? lines.join("\n") : cleanText;
+  const lines: string[] = [];
+  for (let i = 0; i < text.length; i += maxChars) {
+    lines.push(text.substring(i, i + maxChars));
+  }
+  return lines.join("\n");
 }
