@@ -1,5 +1,4 @@
 import { buildForm5Data } from "../rules/mappers/form5Mapper";
-import { parseRawText } from "../rules/utils/textUtils";
 import { PdfService } from "../services/pdfService";
 
 export interface GeneratedPDF {
@@ -8,8 +7,39 @@ export interface GeneratedPDF {
 }
 
 /**
+ * 生テキスト（"項目名 : 値"）をオブジェクト形式に変換する関数
+ */
+function parseRawText(rawText: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const lines = rawText.split("\n");
+  let currentKey: string | null = null;
+
+  for (const line of lines) {
+    const match = line.match(/^([^:：]+)[:：]\s*(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      const val = match[2].trim();
+      currentKey = key;
+      result[key] = val;
+    } else if (
+      currentKey &&
+      line.trim() &&
+      !line.startsWith("---") &&
+      !line.startsWith("■") &&
+      !line.startsWith("【") &&
+      !line.startsWith("==")
+    ) {
+      // 複数行の入力（災害原因などの改行対応）
+      result[currentKey] = result[currentKey]
+        ? `${result[currentKey]}\n${line.trim()}`
+        : line.trim();
+    }
+  }
+  return result;
+}
+
+/**
  * 様式第5号 生成処理（病院用・薬局用の一括生成）
- * @param inputText フロントエンドから届いた生テキストデータ
  */
 export async function generateForm5PDFs(inputText: string): Promise<GeneratedPDF[]> {
   const results: GeneratedPDF[] = [];
@@ -41,14 +71,11 @@ export async function generateForm5PDFs(inputText: string): Promise<GeneratedPDF
 
 /**
  * 様式第6号 生成処理（様式第5号のテキストを引き継いで生成）
- * ※様式第5号完成後の拡張用テンプレート
  */
 export async function generateForm6PDFs(
   form5InputText: string,
   form6InputText: string
 ): Promise<GeneratedPDF[]> {
-  // 現状は空配列または様式6用の実装準備
   const results: GeneratedPDF[] = [];
-  // 今後、form5InputText と form6InputText を結合解析して generatePdf("6", mappedData) を呼び出す構成にします
   return results;
 }
