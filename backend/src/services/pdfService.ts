@@ -123,11 +123,11 @@ export class PdfService {
         }
 
         // C. 災害の原因と発生状況 (accident_detail) 専用描画
-        // フォントサイズの縮小を行わず、48文字ごとに最大4行、14ptピッチで下へ移動
+        // MAX 47文字固定、行間ピッチ 18.2ptで下へ落として描画（フォントサイズは固定10.5pt）
         if (field.id === "accident_detail") {
-          const maxChars = field.maxChars || 48;
-          const lineHeight = field.lineHeight || 14;
-          const fixedFontSize = 10.5; // 固定フォントサイズ
+          const maxChars = field.maxChars || 47;
+          const lineHeight = field.lineHeight || 18.2;
+          const fixedFontSize = 10.5;
 
           const rawLines = strVal.split("\n");
           const wrappedLines: string[] = [];
@@ -142,7 +142,6 @@ export class PdfService {
             }
           }
 
-          // 最大4行分だけ下方向へ固定幅で落として描画
           const targetLines = wrappedLines.slice(0, 4);
           targetLines.forEach((lineText, lineIdx) => {
             page.drawText(lineText, {
@@ -156,12 +155,32 @@ export class PdfService {
           continue;
         }
 
-        // D. 長文で枠内に収まらない項目の動的縮小処理（最大30文字限界対応）
+        // D. 請求医療機関名 (Claim_Hospital_name) 専用描画
+        // 改行で2行目になった場合、位置を1文字分(10pt)上へ移動して描画
+        if (field.id === "Claim_Hospital_name") {
+          const rawLines = strVal.split("\n");
+          const defaultLineHeight = field.lineHeight || 10;
+          // 通常の改行幅(10pt)より1文字分(10pt)上へ引き上げて描画
+          const adjustedLineHeight = Math.max(0, defaultLineHeight - 10);
+
+          rawLines.forEach((lineText, lineIdx) => {
+            page.drawText(lineText, {
+              x: field.x,
+              y: field.y - lineIdx * adjustedLineHeight,
+              size: fontSize,
+              font: customFont,
+              color: rgb(0, 0, 0),
+            });
+          });
+          continue;
+        }
+
+        // E. 長文で枠内に収まらない項目の動的縮小処理（最大30文字限界対応）
         if (AUTO_SCALE_FIELDS.includes(field.id) && strVal.length > 28) {
           fontSize = Math.max(7, fontSize * (28 / strVal.length));
         }
 
-        // E. 通常テキスト描画
+        // F. 通常テキスト描画
         page.drawText(strVal, {
           x: field.x,
           y: field.y,
