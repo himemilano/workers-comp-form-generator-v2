@@ -25,9 +25,6 @@ export interface FormSchema {
   }>;
 }
 
-/**
- * 枠内に収めるために文字数超過時に動的にフォントを縮小するJSON IDリスト（最大30文字限界）
- */
 const AUTO_SCALE_FIELDS = [
   "Company_name_and_representative's_name",
   "Claimant's_address",
@@ -35,25 +32,36 @@ const AUTO_SCALE_FIELDS = [
 
 export class PdfService {
   /**
-   * マッピング済みのデータとスキーマを元にPDFを生成する
+   * キー名の大文字小文字やアンダースコアの違いを柔軟に吸収して値を取得するヘルパー
    */
+  private static getValue(mappedData: Record<string, any>, targetId: string): any {
+    if (mappedData[targetId] !== undefined) return mappedData[targetId];
+
+    // 完全一致で見つからない場合、文字のケースを無視して検索
+    const normalizedTarget = targetId.toLowerCase().replace(/[^a-z0-9]/g, "");
+    for (const key of Object.keys(mappedData)) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (normalizedKey === normalizedTarget) {
+        return mappedData[key];
+      }
+    }
+    return undefined;
+  }
+
   public static async generatePdf(
     formType: "5" | "6",
     mappedData: Record<string, any>
   ): Promise<Buffer> {
-    // 1. スキーマ読み込み
     const schemaPath = path.join(__dirname, `../schemas/form${formType}.json`);
     const schemaContent = await fs.readFile(schemaPath, "utf-8");
     const schema: FormSchema = JSON.parse(schemaContent);
 
-    // 2. テンプレートPDF読み込み
     const templatePath = path.resolve(__dirname, `../templates/${schema.template}`);
     const templateBytes = await fs.readFile(templatePath);
 
     const pdfDoc = await PDFDocument.load(templateBytes, { ignoreEncryption: true });
     pdfDoc.registerFontkit(fontkit);
 
-    // 3. IPAexGothicフォントの読み込み
     const fontCandidates = [
       path.join(__dirname, "../fonts/IPAexGothic.ttf"),
       path.join(__dirname, "../../src/fonts/IPAexGothic.ttf"),
@@ -78,14 +86,14 @@ export class PdfService {
     const customFont = await pdfDoc.embedFont(fontBytes);
     const pages = pdfDoc.getPages();
 
-    // 4. スキーマに基づいて全フィールドを描画
     for (const pageConfig of schema.pages) {
       const pageIndex = (pageConfig.page || 1) - 1;
       const page = pages[pageIndex];
       if (!page) continue;
 
       for (const field of pageConfig.fields) {
-        const val = mappedData[field.id];
+        // キー名の揺れを吸収してデータ取得
+        const val = this.getValue(mappedData, field.id);
         if (val === undefined || val === null || val === "" || val === false) {
           continue;
         }
@@ -123,7 +131,6 @@ export class PdfService {
         }
 
         // C. 災害の原因と発生状況 (accident_detail) 専用描画
-        // MAX 47文字固定、行間ピッチ 18.2ptで下へ落として描画（フォントサイズは固定10.5pt）
         if (field.id === "accident_detail") {
           const maxChars = field.maxChars || 47;
           const lineHeight = field.lineHeight || 18.2;
@@ -156,17 +163,14 @@ export class PdfService {
         }
 
         // D. 請求医療機関名 (Claim_Hospital_name) 専用描画
-        // 改行で2行目になった場合、位置を1文字分(10pt)上へ移動して描画
         if (field.id === "Claim_Hospital_name") {
           const rawLines = strVal.split("\n");
-          const defaultLineHeight = field.lineHeight || 10;
-          // 通常の改行幅(10pt)より1文字分(10pt)上へ引き上げて描画
-          const adjustedLineHeight = Math.max(0, defaultLineHeight - 10);
+          const lineHeight = field.lineHeight || 11;
 
           rawLines.forEach((lineText, lineIdx) => {
             page.drawText(lineText, {
               x: field.x,
-              y: field.y - lineIdx * adjustedLineHeight,
+              y: field.y - lineIdx * lineHeight,
               size: fontSize,
               font: customFont,
               color: rgb(0, 0, 0),
@@ -175,7 +179,7 @@ export class PdfService {
           continue;
         }
 
-        // E. 長文で枠内に収まらない項目の動的縮小処理（最大30文字限界対応）
+        // E. 長文で枠内に収まらない項目の動的縮小処理
         if (AUTO_SCALE_FIELDS.includes(field.id) && strVal.length > 28) {
           fontSize = Math.max(7, fontSize * (28 / strVal.length));
         }
