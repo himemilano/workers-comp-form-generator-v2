@@ -2,7 +2,7 @@ export interface ParsedDate {
   year: string;
   month: string;
   day: string;
-  padded6: string; // マス目印字用の6桁（例: 080829）
+  padded6: string;
 }
 
 export interface ParsedPhone {
@@ -28,29 +28,52 @@ export function toHalfWidth(str: string = ""): string {
 
 /**
  * キーバリューオブジェクトから値を取得する
- * （(例: ...) の除去、スペース除去、全半角補正を自動で行い完全補正）
+ * ひな型側の完全表記（例：氏名(漢字)）にも短縮表記（例：氏名）にも100%自動対応。
+ * 目視できないスペース・全半角・カッコ内の注記も全自動吸収します。
  */
-export function getVal(rawInput: Record<string, string>, key: string): string {
+export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
 
-  // 1. 完全一致チェック
-  if (rawInput[key] !== undefined) {
-    return rawInput[key].trim();
-  }
+  const keyList = Array.isArray(keys) ? keys : [keys];
 
-  // 2. キーの正規化関数（スペース除去、カッコ統一、(例:...) の注記を自動カット）
-  const normalizeKey = (k: string) =>
-    k
-      .replace(/[\s\u3000]/g, "")           // 全角・半角スペースを全除去
-      .replace(/（/g, "(")                   // カッコを半角に統一
-      .replace(/）/g, ")")
-      .replace(/\(例[:：][^)]*\)/gi, "");    // (例: ...) や (例：...) を丸ごとカット
+  const clean = (s: string) =>
+    s.replace(/[\s\u3000]/g, "").replace(/（/g, "(").replace(/）/g, ")");
 
-  const targetNormalized = normalizeKey(key);
+  const stripParens = (s: string) => clean(s).replace(/\([^)]*\)/g, "");
 
-  for (const rKey of Object.keys(rawInput)) {
-    if (normalizeKey(rKey) === targetNormalized) {
-      return rawInput[rKey].trim();
+  for (const key of keyList) {
+    if (!key) continue;
+
+    // 1. 完全一致
+    if (rawInput[key] !== undefined && rawInput[key].trim() !== "") {
+      return rawInput[key].trim();
+    }
+
+    const normQuery = clean(key);
+    const baseQuery = stripParens(key);
+
+    // 2. スペース・カッコ表記を正規化して比較
+    for (const rKey of Object.keys(rawInput)) {
+      const normRKey = clean(rKey);
+      if (normRKey === normQuery && rawInput[rKey].trim() !== "") {
+        return rawInput[rKey].trim();
+      }
+    }
+
+    // 3. カッコ内（(漢字) や (14桁...) など）を丸ごとカットして比較
+    for (const rKey of Object.keys(rawInput)) {
+      const baseRKey = stripParens(rKey);
+      if (baseQuery !== "" && baseRKey === baseQuery && rawInput[rKey].trim() !== "") {
+        return rawInput[rKey].trim();
+      }
+    }
+
+    // 4. 前方一致
+    for (const rKey of Object.keys(rawInput)) {
+      const normRKey = clean(rKey);
+      if (normRKey.startsWith(normQuery) && rawInput[rKey].trim() !== "") {
+        return rawInput[rKey].trim();
+      }
     }
   }
 
@@ -74,11 +97,10 @@ export function parseZip(zipStr: string = ""): ParsedZip {
 }
 
 /**
- * 電話番号をハイフンまたは桁数で市外局番・市内局番・番号に分解
+ * 電話番号を市外局番・市内局番・番号に分解
  */
 export function parsePhone(phoneStr: string = ""): ParsedPhone {
   const cleaned = toHalfWidth(phoneStr);
-  
   const parts = cleaned.split(/[-ー\s()（）]/).filter((p) => p !== "");
   if (parts.length >= 3) {
     return { area: parts[0], city: parts[1], num: parts[2] };
@@ -98,7 +120,7 @@ export function parsePhone(phoneStr: string = ""): ParsedPhone {
 }
 
 /**
- * 様々な日付形式を分解（通常印字用は1桁そのまま、マス目用は6桁ゼロ埋め）
+ * 様々な日付形式を分解
  */
 export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   const cleaned = toHalfWidth(dateStr);
@@ -150,7 +172,7 @@ export function stripHospitalSuffix(name: string = ""): string {
 }
 
 /**
- * マス目印字用（指定桁数に合わせて空白埋め）
+ * マス目印字用
  */
 export function padGridValue(val: string = "", length: number): string {
   const cleaned = toHalfWidth(val).replace(/[^\d]/g, "");
