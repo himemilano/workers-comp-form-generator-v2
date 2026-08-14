@@ -1,10 +1,10 @@
 export interface ParsedDate {
-  era: string;          // 例: "令和"
-  year: string;         // 例: "8"
-  yearWithEra: string;  // 例: "令和8"（元号＋数字）
-  month: string;        // 例: "8"
-  day: string;          // 例: "29"
-  padded6: string;      // 例: "080829"
+  era: string;
+  year: string;
+  yearWithEra: string;
+  month: string;
+  day: string;
+  padded6: string;
 }
 
 export interface ParsedPhone {
@@ -18,9 +18,6 @@ export interface ParsedZip {
   last: string;
 }
 
-/**
- * 全角英数字・記号を半角に変換する
- */
 export function toHalfWidth(str: string = ""): string {
   return str
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0))
@@ -29,15 +26,14 @@ export function toHalfWidth(str: string = ""): string {
 }
 
 /**
- * キーバリューオブジェクトから値を取得する
- * ひな型由来の「) :」などのゴミ混入を全自動で除外・クレンジングします
+ * キーバリューオブジェクトから値を取得する（厳格な完全一致判定）
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
 
   const keyList = Array.isArray(keys) ? keys : [keys];
 
-  // ひな型注記のコロン分割によるゴミ（例: "123-4567) : 611-0011"）を除去する
+  // ひな型注記のコロン分割ゴミを除去
   const cleanValue = (val: string): string => {
     if (!val) return "";
     let s = val.trim();
@@ -48,22 +44,18 @@ export function getVal(rawInput: Record<string, string>, keys: string | string[]
     return s;
   };
 
-  const stripParensAndSpace = (s: string) =>
-    s.replace(/[\s\u3000]/g, "").replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
+  // 空白除去 & カッコを半角統一（前置・後置のあいまい比較は行わない）
+  const normalizeKey = (s: string) =>
+    s.replace(/[\s\u3000]/g, "").replace(/（/g, "(").replace(/）/g, ")");
 
   for (const queryKey of keyList) {
     if (!queryKey) continue;
 
-    const cleanQuery = stripParensAndSpace(queryKey);
+    const normQuery = normalizeKey(queryKey);
 
+    // 完全一致のみを探索
     for (const [rKey, rVal] of Object.entries(rawInput)) {
-      const cleanRKey = stripParensAndSpace(rKey);
-
-      if (
-        cleanRKey === cleanQuery ||
-        cleanRKey.startsWith(cleanQuery) ||
-        cleanQuery.startsWith(cleanRKey)
-      ) {
+      if (normalizeKey(rKey) === normQuery) {
         const extracted = cleanValue(rVal);
         if (extracted !== "") {
           return extracted;
@@ -75,9 +67,6 @@ export function getVal(rawInput: Record<string, string>, keys: string | string[]
   return "";
 }
 
-/**
- * 郵便番号をハイフンで前半3桁・後半4桁に分解
- */
 export function parseZip(zipStr: string = ""): ParsedZip {
   const cleaned = toHalfWidth(zipStr);
   const parts = cleaned.split("-").filter((p) => p !== "");
@@ -91,9 +80,6 @@ export function parseZip(zipStr: string = ""): ParsedZip {
   return { first: "", last: "" };
 }
 
-/**
- * 電話番号を市外局番・市内局番・番号に分解
- */
 export function parsePhone(phoneStr: string = ""): ParsedPhone {
   const cleaned = toHalfWidth(phoneStr);
   const parts = cleaned.split(/[-ー\s()（）]/).filter((p) => p !== "");
@@ -114,9 +100,6 @@ export function parsePhone(phoneStr: string = ""): ParsedPhone {
   return { area: "", city: "", num: "" };
 }
 
-/**
- * 日付形式を分解（元号＋数字の yearWithEra も生成）
- */
 export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   const cleaned = toHalfWidth(dateStr);
   if (!cleaned) return { era: "", year: "", yearWithEra: "", month: "", day: "", padded6: "" };
@@ -124,7 +107,6 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   let era = "";
   let y = "", m = "", d = "";
 
-  // 漢字での和暦パターン（例: "令和8年8月29日", "R8年8月29日"）
   const kanjiMatch = cleaned.match(/^(?:(令和|平成|昭和|R|H|S)\s*)?(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日$/i);
   if (kanjiMatch) {
     era = kanjiMatch[1] || "";
@@ -132,7 +114,6 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
     m = kanjiMatch[3];
     d = kanjiMatch[4];
   } else {
-    // 元号記号付きかチェック
     const eraMatch = cleaned.match(/^(令和|平成|昭和|R|H|S)\s*/i);
     let dateBody = cleaned;
     if (eraMatch) {
@@ -175,24 +156,15 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   };
 }
 
-/**
- * 指定病院等名称から末尾の「病院・診療所・薬局・クリニック」を削除
- */
 export function stripHospitalSuffix(name: string = ""): string {
   return name.replace(/(病院|診療所|薬局|クリニック)$/, "").trim();
 }
 
-/**
- * マス目印字用
- */
 export function padGridValue(val: string = "", length: number): string {
   const cleaned = toHalfWidth(val).replace(/[^\d]/g, "");
   return cleaned.padEnd(length, " ");
 }
 
-/**
- * 長文の自動折り返し
- */
 export function wrapText(text: string = "", maxChars: number): string {
   if (!text) return "";
   const lines: string[] = [];
