@@ -44,7 +44,33 @@ export function formatKatakanaWithDakuon(str: string = ""): string {
 }
 
 /**
- * スマートキーバリュー取得（誤爆防止 ＆ 注記付きキー正常取得）
+ * キー判定用の正規化処理
+ * 注記・カッコ・空白・記号を除去して比較用のコア文字を抽出する
+ */
+function cleanKeyForMatching(s: string): string {
+  if (!s) return "";
+  return s
+    // 注記や説明用カッコを事前にピンポイント除去
+    .replace(/[\(（][^\)）]*例:[^\)）]*[\)）]/g, "")
+    .replace(/[\(（][^\)）]*入力[^\)）]*[\)）]/g, "")
+    .replace(/[\(（][^\)）]*ハイフン[^\)）]*[\)）]/g, "")
+    .replace(/[\(（][^\)）]*数字のみ[^\)）]*[\)）]/g, "")
+    .replace(/[\(（][^\)）]*全角カタカナ[^\)）]*[\)）]/g, "")
+    .replace(/[\(（][^\)）]*→[^\)）]*[\)）]/g, "")
+    .replace(/（漢字）|\(漢字\)/g, "")
+    .replace(/（事業の名称）|\(事業の名称\)/g, "")
+    .replace(/（事業場の所在地）|\(事業場の所在地\)/g, "")
+    .replace(/（詳しく）|\(詳しく\)/g, "")
+    // (時) や (分) などの単漢字カッコはカッコだけ外し「時」「分」を残す
+    .replace(/[\(（](時|分)[\)）]/g, "$1")
+    // その他のカッコ・記号・空白の完全除去
+    .replace(/[\s\u3000\(\)（）:：\-_・]/g, "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .toLowerCase();
+}
+
+/**
+ * スマートキーバリュー取得（誤爆防止 ＆ 完全一致判定）
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
@@ -62,75 +88,57 @@ export function getVal(rawInput: Record<string, string>, keys: string | string[]
     return s;
   };
 
-  const norm = (s: string) =>
-    s
-      .replace(/[\s\u3000]/g, "")
-      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
-      .toLowerCase();
-
   for (const queryKey of keyList) {
     if (!queryKey) continue;
-    const nQuery = norm(queryKey);
+    const coreQuery = cleanKeyForMatching(queryKey);
 
     for (const [rKey, rVal] of Object.entries(rawInput)) {
-      const nRKey = norm(rKey);
+      const coreRKey = cleanKeyForMatching(rKey);
 
-      // --- 1. 属性の厳格チェック (誤爆遮断) ---
+      // --- 属性による厳格フィルター (ガード) ---
+      // 1. 代表者（「代表者職氏名」と「被災者氏名」の混同防止）
+      const qDaihyo = coreQuery.includes("代表者");
+      const rDaihyo = coreRKey.includes("代表者");
+      if (qDaihyo !== rDaihyo) continue;
 
-      // 「和暦」判定（生年月日 と 生年月日の和暦 の混同を100%防止）
-      const qHasWareki = nQuery.includes("和暦");
-      const rHasWareki = nRKey.includes("和暦");
-      if (qHasWareki !== rHasWareki) continue;
+      // 2. 確認者（「災害事実の確認者氏名」と「被災者氏名」の混同防止）
+      const qKakunin = coreQuery.includes("確認者");
+      const rKakunin = coreRKey.includes("確認者");
+      if (qKakunin !== rKakunin) continue;
 
-      // フリガナ判定
-      const qHasKana = nQuery.includes("フリガナ") || nQuery.includes("ふりがな");
-      const rHasKana = nRKey.includes("フリガナ") || nRKey.includes("ふりがな");
-      if (qHasKana !== rHasKana) continue;
+      // 3. フリガナ
+      const qKana = coreQuery.includes("フリガナ") || coreQuery.includes("ふりがな");
+      const rKana = coreRKey.includes("フリガナ") || coreRKey.includes("ふりがな");
+      if (qKana !== rKana) continue;
 
-      // 「確認者」判定（被災者氏名との混同防止）
-      const qHasKakunin = nQuery.includes("確認者");
-      const rHasKakunin = nRKey.includes("確認者");
-      if (qHasKakunin !== rHasKakunin) continue;
+      // 4. 和暦
+      const qWareki = coreQuery.includes("和暦");
+      const rWareki = coreRKey.includes("和暦");
+      if (qWareki !== rWareki) continue;
 
-      // 負傷時刻「区分」判定
-      const qHasKubun = nQuery.includes("区分");
-      const rHasKubun = nRKey.includes("区分");
-      if (qHasKubun !== rHasKubun) continue;
+      // 5. 区分
+      const qKubun = coreQuery.includes("区分");
+      const rKubun = coreRKey.includes("区分");
+      if (qKubun !== rKubun) continue;
 
-      // 「時」と「分」の判定（区分以外）
-      if (!qHasKubun) {
-        const qHasToki = nQuery.includes("時");
-        const rHasToki = nRKey.includes("時");
-        if (qHasToki !== rHasToki) continue;
+      // 6. 時・分（区分以外）
+      if (!qKubun) {
+        const qToki = coreQuery.includes("時");
+        const rToki = coreRKey.includes("時");
+        if (qToki !== rToki) continue;
 
-        const qHasFun = nQuery.includes("分");
-        const rHasFun = nRKey.includes("分");
-        if (qHasFun !== rHasFun) continue;
+        const qFun = coreQuery.includes("分");
+        const rFun = coreRKey.includes("分");
+        if (qFun !== rFun) continue;
       }
 
-      // 都道府県と市町村の判定
-      const qHasTodofuken = nQuery.includes("都道府県");
-      const rHasTodofuken = nRKey.includes("都道府県");
-      if (qHasTodofuken !== rHasTodofuken) continue;
+      // 7. 都道府県
+      const qTodofuken = coreQuery.includes("都道府県");
+      const rTodofuken = coreRKey.includes("都道府県");
+      if (qTodofuken !== rTodofuken) continue;
 
-      // --- 2. 「例:」などの注記文だけをピンポイント除去して比較 ---
-      const stripNotes = (s: string) =>
-        s
-          .replace(/\(例:[^)]*\)/g, "")
-          .replace(/（例:[^）]*）/g, "")
-          .replace(/\([^)]*→[^)]*\)/g, "")
-          .replace(/（[^）]*→[^）]*）/g, "")
-          .replace(/\([^)]*数字のみ[^)]*\)/g, "")
-          .replace(/（[^）]*数字のみ[^）]*）/g, "")
-          .replace(/\([^)]*全角カタカナ[^)]*\)/g, "")
-          .replace(/（[^）]*全角カタカナ[^）]*）/g, "")
-          .replace(/\(漢字\)/g, "")
-          .replace(/（漢字）/g, "");
-
-      const coreQuery = stripNotes(nQuery);
-      const coreRKey = stripNotes(nRKey);
-
-      if (coreRKey.includes(coreQuery) || coreQuery.includes(coreRKey)) {
+      // コア文字の完全一致（===）で比較
+      if (coreRKey === coreQuery) {
         const extracted = cleanValue(rVal);
         if (extracted !== "") {
           return extracted;
