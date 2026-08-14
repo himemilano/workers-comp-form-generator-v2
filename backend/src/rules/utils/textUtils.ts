@@ -27,9 +27,54 @@ export function toHalfWidth(str: string = ""): string {
 }
 
 /**
+ * ひな型テキスト（キー: 値）を連想配列に変換する
+ * (例: 123-4567) のようなカッコ内のコロンを無視し、正しい区切りコロンで分割します
+ */
+export function parseInputText(text: string = ""): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!text) return result;
+
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      !trimmed ||
+      trimmed.startsWith("【") ||
+      trimmed.startsWith("■") ||
+      trimmed.startsWith("===") ||
+      trimmed.startsWith("---")
+    ) {
+      continue;
+    }
+
+    // カッコの外にある区切りコロン（: または ：）を探す
+    let colonIdx = -1;
+    let depth = 0;
+    for (let i = 0; i < trimmed.length; i++) {
+      const char = trimmed[i];
+      if (char === "(" || char === "（") {
+        depth++;
+      } else if (char === ")" || char === "）") {
+        if (depth > 0) depth--;
+      } else if ((char === ":" || char === "：") && depth === 0) {
+        colonIdx = i;
+        break; // カッコ外の最初の区切りコロンを発見！
+      }
+    }
+
+    if (colonIdx !== -1) {
+      const key = trimmed.substring(0, colonIdx).trim();
+      const val = trimmed.substring(colonIdx + 1).trim();
+      if (key) {
+        result[key] = val;
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * キーバリューオブジェクトから値を取得する
- * ひな型側の完全表記（例：氏名(漢字)）にも短縮表記（例：氏名）にも100%自動対応。
- * 目視できないスペース・全半角・カッコ内の注記も全自動吸収します。
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
@@ -60,7 +105,7 @@ export function getVal(rawInput: Record<string, string>, keys: string | string[]
       }
     }
 
-    // 3. カッコ内（(漢字) や (14桁...) など）を丸ごとカットして比較
+    // 3. カッコ内をカットして比較
     for (const rKey of Object.keys(rawInput)) {
       const baseRKey = stripParens(rKey);
       if (baseQuery !== "" && baseRKey === baseQuery && rawInput[rKey].trim() !== "") {
