@@ -26,45 +26,67 @@ export function toHalfWidth(str: string = ""): string {
 }
 
 /**
- * 他の項目を破壊せず、競合する特定ペア（漢字/カナ、区分/時/分）のみを厳密分離するgetVal
+ * カタカナの濁点・半濁点を独立した文字 ("゛", "゜") に分離する
+ */
+export function splitKatakanaDakuon(str: string = ""): string[] {
+  const result: string[] = [];
+  const normalized = str.normalize("NFD");
+  for (const char of normalized) {
+    if (char === "\u3099") result.push("゛");
+    else if (char === "\u309A") result.push("゜");
+    else result.push(char);
+  }
+  return result;
+}
+
+export function formatKatakanaWithDakuon(str: string = ""): string {
+  return splitKatakanaDakuon(str).join("");
+}
+
+/**
+ * キー判定用の正規化処理
+ * (カッコ注記、空白、全半角の違いを除去して純粋なキー名を取り出す)
+ */
+function cleanKey(s: string): string {
+  if (!s) return "";
+  return s
+    .replace(/\([^)]*\)/g, "")
+    .replace(/（[^）]*）/g, "")
+    .replace(/[\s\u3000]/g, "")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+    .toLowerCase();
+}
+
+/**
+ * キーバリューから値を厳格取得（ベースキー名の完全一致のみ）
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
 
   const keyList = Array.isArray(keys) ? keys : [keys];
-  const norm = (s: string) => s.replace(/[\s\u3000]/g, "").toLowerCase();
 
-  for (const query of keyList) {
-    if (!query) continue;
-    const normQuery = norm(query);
+  const cleanValue = (val: string): string => {
+    if (!val) return "";
+    let s = val.trim();
+    if (s.includes("):") || s.includes("）：") || s.includes(") :") || s.includes("） :")) {
+      const parts = s.split(/[\)）]\s*[:：]\s*/);
+      s = parts[parts.length - 1].trim();
+    }
+    return s;
+  };
+
+  for (const queryKey of keyList) {
+    if (!queryKey) continue;
+    const targetKey = cleanKey(queryKey);
 
     for (const [rKey, rVal] of Object.entries(rawInput)) {
-      const normRKey = norm(rKey);
+      const currentKey = cleanKey(rKey);
 
-      // --- ピンポイント競合ガード ---
-      // 1. フリガナの混同防止
-      if (normQuery.includes("フリガナ") !== normRKey.includes("フリガナ")) continue;
-
-      // 2. 区分（AM/PM）の混同防止
-      if (normQuery.includes("区分") !== normRKey.includes("区分")) continue;
-
-      // 3. 時・分の混同防止
-      if (normQuery.includes("時") !== normRKey.includes("時")) continue;
-      if (normQuery.includes("分") !== normRKey.includes("分")) continue;
-
-      // カッコ（(例:...)など）を除去したベース名で比較
-      const baseQuery = normQuery.replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
-      const baseRKey = normRKey.replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
-
-      if (baseRKey.includes(baseQuery) || baseQuery.includes(baseRKey)) {
-        let val = rVal.trim();
-        // コロンゴミ除去
-        if (val.includes("):") || val.includes("）：") || val.includes(") :") || val.includes("） :")) {
-          const parts = val.split(/[\)）]\s*[:：]\s*/);
-          val = parts[parts.length - 1].trim();
-        }
-        if (val !== "") {
-          return val;
+      // 部分一致(includes)ではなく完全一致(===)で判定
+      if (currentKey === targetKey) {
+        const extracted = cleanValue(rVal);
+        if (extracted !== "") {
+          return extracted;
         }
       }
     }
