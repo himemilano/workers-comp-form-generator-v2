@@ -16,10 +16,16 @@ export function buildForm5Data(
 ): MappedFormData {
   const v = (keys: string | string[]) => getVal(rawInput, keys);
 
-  // 1. 本人共通情報
+  // 1. 本人共通情報（ペアの厳格判別）
   const workerName = v(["氏名(漢字)", "氏名"]);
+  const nameInKatakana = v(["氏名フリガナ(全角カタカナ・姓と名の間にスペース)", "氏名フリガナ"]).slice(0, 16);
+
   const prefStr = v(["住所都道府県"]);
+  const prefKana = v(["住所都道府県フリガナ"]).slice(0, 27);
+
   const cityStr = v(["住所市町村以降"]);
+  const addressInKana = v(["住所市町村以降フリガナ"]).slice(0, 27);
+
   const fullAddress = prefStr + cityStr;
 
   const workerZip = parseZip(v(["本人郵便番号(例: 123-4567)", "本人郵便番号"]));
@@ -64,17 +70,16 @@ export function buildForm5Data(
   const fillDateYmd = parseFlexibleDate(v(["記入日(例: 令和8年8月30日)", "記入日"]));
   const joiningDateYmd = parseFlexibleDate(v(["特別加入日(例: 令和5年4月1日)", "特別加入日"]));
 
-  // 6. 区分フラグ
+  // 6. 時刻区分の厳格判別（区分 / 時 / 分 をそれぞれ100%分断）
   const rawTimeType = v(["負傷時刻区分(AM または PMと入力)", "負傷時刻区分"]);
   const isAM = rawTimeType.toUpperCase().includes("AM");
   const isPM = rawTimeType.toUpperCase().includes("PM");
 
+  const disasterHour = toHalfWidth(v(["負傷時刻(時・数字のみ)", "負傷時刻(時)"]));
+  const disasterMinute = toHalfWidth(v(["負傷時刻(分・数字のみ)", "負傷時刻(分)"]));
+
   const inspectorateOffice = v(["管轄労働基準監督署名(例: 京都南)", "管轄労働基準監督署名"]);
   const multipleRaw = v(["その他就業先が有る場合(有と入力、無ければ空欄)", "その他就業先の有無"]);
-
-  // 7. 文字列カット
-  const nameInKatakana = v(["氏名フリガナ(全角カタカナ・姓と名の間にスペース)", "氏名フリガナ"]).slice(0, 16);
-  const addressInKana = v(["住所市町村以降フリガナ"]).slice(0, 27);
 
   return {
     "Labor_insurance_No.": fullLaborIns,
@@ -90,7 +95,7 @@ export function buildForm5Data(
     "zip_first": workerZip.first,
     "zip_last": workerZip.last,
 
-    "Personal_address_and_prefecture,and_phonetic_spelling": v(["住所都道府県フリガナ"]).slice(0, 27),
+    "Personal_address_and_prefecture,and_phonetic_spelling": prefKana,
     "Personal_address_and_prefecture": prefStr,
     "Personal_address_in_kana": addressInKana,
     "Personal_address": cityStr,
@@ -98,8 +103,8 @@ export function buildForm5Data(
 
     "time_am": isAM ? "〇" : "",
     "time_pm": isPM ? "〇" : "",
-    "disaster_hour": toHalfWidth(v(["負傷時刻(時・数字のみ)", "負傷時刻(時)"])),
-    "disaster_minute": toHalfWidth(v(["負傷時刻(分・数字のみ)", "負傷時刻(分)"])),
+    "disaster_hour": disasterHour,
+    "disaster_minute": disasterMinute,
 
     "accident_detail": v(["災害の原因と発生状況(詳しく)", "災害の原因と発生状況"]),
 
@@ -121,7 +126,6 @@ export function buildForm5Data(
     "Company_Address": wrapText(v(["証明会社住所(事業場の所在地)", "証明会社住所"]), 28),
     "Representative's_name": v(["代表者職氏名(例: 代表取締役 山田 太郎)", "代表者職氏名"]),
 
-    // 事業主証明年月日（年の前に入力どおりの元号＋数字を表示）
     "Year_of_proof_of_fact": proofDateYmd.yearWithEra,
     "Month_of_Proof_of_Fact": proofDateYmd.month,
     "The_day_of_proof_of_facts": proofDateYmd.day,
@@ -146,18 +150,15 @@ export function buildForm5Data(
     "claimant_tel_city": workerPhone.city,
     "claimant_tel_num": workerPhone.num,
 
-    // 記入日（年の前に入力どおりの元号＋数字を表示）
     "Year_of_entry": fillDateYmd.yearWithEra,
     "Month_of_entry": fillDateYmd.month,
     "Date_of_entry": fillDateYmd.day,
 
-    // 裏面項目
     "Multiple": multipleRaw === "有" ? "〇" : "",
     "Number_of_workplaces": toHalfWidth(v(["表面以外の就業先の数(数字のみ)", "表面以外の就業先の数"])),
     "Special_Insurance_num": v(["特別加入の労働保険番号"]),
     "Name_of_Special_Member_Organization": v(["労働保険事務組合等の名称"]),
 
-    // 特別加入日（年の前に入力どおりの元号＋数字を表示）
     "Year_of_joining": joiningDateYmd.yearWithEra,
     "Joining_Month": joiningDateYmd.month,
     "Joining_date": joiningDateYmd.day,
