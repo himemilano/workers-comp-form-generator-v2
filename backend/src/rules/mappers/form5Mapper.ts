@@ -16,7 +16,7 @@ export function buildForm5Data(
 ): MappedFormData {
   const v = (keys: string | string[]) => getVal(rawInput, keys);
 
-  // 1. 本人共通情報（ペアの厳格判別）
+  // 1. 本人共通情報（明確に分断取得）
   const workerName = v(["氏名(漢字)", "氏名"]);
   const nameInKatakana = v(["氏名フリガナ(全角カタカナ・姓と名の間にスペース)", "氏名フリガナ"]).slice(0, 16);
 
@@ -70,7 +70,7 @@ export function buildForm5Data(
   const fillDateYmd = parseFlexibleDate(v(["記入日(例: 令和8年8月30日)", "記入日"]));
   const joiningDateYmd = parseFlexibleDate(v(["特別加入日(例: 令和5年4月1日)", "特別加入日"]));
 
-  // 6. 時刻区分の厳格判別（区分 / 時 / 分 をそれぞれ100%分断）
+  // 6. 時刻区分の判別（区分 / 時 / 分 を厳密分断）
   const rawTimeType = v(["負傷時刻区分(AM または PMと入力)", "負傷時刻区分"]);
   const isAM = rawTimeType.toUpperCase().includes("AM");
   const isPM = rawTimeType.toUpperCase().includes("PM");
@@ -133,6 +133,7 @@ export function buildForm5Data(
     "Company_tel_area": compPhone.area,
     "Company_tel_city": compPhone.city,
     "Company_tel_num": compPhone.num,
+
     "Company_zip_first": compZip.first,
     "Company_zip_last": compZip.last,
 
