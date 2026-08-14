@@ -77,6 +77,11 @@ export function getVal(rawInput: Record<string, string>, keys: string | string[]
 
       // --- 1. 属性の厳格チェック (誤爆遮断) ---
 
+      // 「和暦」判定（生年月日 と 生年月日の和暦 の混同を100%防止）
+      const qHasWareki = nQuery.includes("和暦");
+      const rHasWareki = nRKey.includes("和暦");
+      if (qHasWareki !== rHasWareki) continue;
+
       // フリガナ判定
       const qHasKana = nQuery.includes("フリガナ") || nQuery.includes("ふりがな");
       const rHasKana = nRKey.includes("フリガナ") || nRKey.includes("ふりがな");
