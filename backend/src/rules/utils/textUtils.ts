@@ -1,8 +1,10 @@
 export interface ParsedDate {
-  year: string;
-  month: string;
-  day: string;
-  padded6: string;
+  era: string;          // 例: "令和"
+  year: string;         // 例: "8"
+  yearWithEra: string;  // 例: "令和8"（元号＋数字）
+  month: string;        // 例: "8"
+  day: string;          // 例: "29"
+  padded6: string;      // 例: "080829"
 }
 
 export interface ParsedPhone {
@@ -27,97 +29,45 @@ export function toHalfWidth(str: string = ""): string {
 }
 
 /**
- * ひな型テキスト（キー: 値）を連想配列に変換する
- * (例: 123-4567) のようなカッコ内のコロンを無視し、正しい区切りコロンで分割します
- */
-export function parseInputText(text: string = ""): Record<string, string> {
-  const result: Record<string, string> = {};
-  if (!text) return result;
-
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (
-      !trimmed ||
-      trimmed.startsWith("【") ||
-      trimmed.startsWith("■") ||
-      trimmed.startsWith("===") ||
-      trimmed.startsWith("---")
-    ) {
-      continue;
-    }
-
-    // カッコの外にある区切りコロン（: または ：）を探す
-    let colonIdx = -1;
-    let depth = 0;
-    for (let i = 0; i < trimmed.length; i++) {
-      const char = trimmed[i];
-      if (char === "(" || char === "（") {
-        depth++;
-      } else if (char === ")" || char === "）") {
-        if (depth > 0) depth--;
-      } else if ((char === ":" || char === "：") && depth === 0) {
-        colonIdx = i;
-        break; // カッコ外の最初の区切りコロンを発見！
-      }
-    }
-
-    if (colonIdx !== -1) {
-      const key = trimmed.substring(0, colonIdx).trim();
-      const val = trimmed.substring(colonIdx + 1).trim();
-      if (key) {
-        result[key] = val;
-      }
-    }
-  }
-  return result;
-}
-
-/**
  * キーバリューオブジェクトから値を取得する
+ * ひな型由来の「) :」などのゴミ混入を全自動で除外・クレンジングします
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
 
   const keyList = Array.isArray(keys) ? keys : [keys];
 
-  const clean = (s: string) =>
-    s.replace(/[\s\u3000]/g, "").replace(/（/g, "(").replace(/）/g, ")");
-
-  const stripParens = (s: string) => clean(s).replace(/\([^)]*\)/g, "");
-
-  for (const key of keyList) {
-    if (!key) continue;
-
-    // 1. 完全一致
-    if (rawInput[key] !== undefined && rawInput[key].trim() !== "") {
-      return rawInput[key].trim();
+  // ひな型注記のコロン分割によるゴミ（例: "123-4567) : 611-0011"）を除去する
+  const cleanValue = (val: string): string => {
+    if (!val) return "";
+    let s = val.trim();
+    if (s.includes("):") || s.includes("）：") || s.includes(") :") || s.includes("） :")) {
+      const parts = s.split(/[\)）]\s*[:：]\s*/);
+      s = parts[parts.length - 1].trim();
     }
+    return s;
+  };
 
-    const normQuery = clean(key);
-    const baseQuery = stripParens(key);
+  const stripParensAndSpace = (s: string) =>
+    s.replace(/[\s\u3000]/g, "").replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
 
-    // 2. スペース・カッコ表記を正規化して比較
-    for (const rKey of Object.keys(rawInput)) {
-      const normRKey = clean(rKey);
-      if (normRKey === normQuery && rawInput[rKey].trim() !== "") {
-        return rawInput[rKey].trim();
-      }
-    }
+  for (const queryKey of keyList) {
+    if (!queryKey) continue;
 
-    // 3. カッコ内をカットして比較
-    for (const rKey of Object.keys(rawInput)) {
-      const baseRKey = stripParens(rKey);
-      if (baseQuery !== "" && baseRKey === baseQuery && rawInput[rKey].trim() !== "") {
-        return rawInput[rKey].trim();
-      }
-    }
+    const cleanQuery = stripParensAndSpace(queryKey);
 
-    // 4. 前方一致
-    for (const rKey of Object.keys(rawInput)) {
-      const normRKey = clean(rKey);
-      if (normRKey.startsWith(normQuery) && rawInput[rKey].trim() !== "") {
-        return rawInput[rKey].trim();
+    for (const [rKey, rVal] of Object.entries(rawInput)) {
+      const cleanRKey = stripParensAndSpace(rKey);
+
+      if (
+        cleanRKey === cleanQuery ||
+        cleanRKey.startsWith(cleanQuery) ||
+        cleanQuery.startsWith(cleanRKey)
+      ) {
+        const extracted = cleanValue(rVal);
+        if (extracted !== "") {
+          return extracted;
+        }
       }
     }
   }
@@ -165,27 +115,38 @@ export function parsePhone(phoneStr: string = ""): ParsedPhone {
 }
 
 /**
- * 様々な日付形式を分解
+ * 日付形式を分解（元号＋数字の yearWithEra も生成）
  */
 export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   const cleaned = toHalfWidth(dateStr);
-  if (!cleaned) return { year: "", month: "", day: "", padded6: "" };
+  if (!cleaned) return { era: "", year: "", yearWithEra: "", month: "", day: "", padded6: "" };
 
+  let era = "";
   let y = "", m = "", d = "";
 
-  const kanjiMatch = cleaned.match(/(?:令和|平成|昭和|R|H|S)?\s*(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/i);
+  // 漢字での和暦パターン（例: "令和8年8月29日", "R8年8月29日"）
+  const kanjiMatch = cleaned.match(/^(?:(令和|平成|昭和|R|H|S)\s*)?(\d{1,2})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日$/i);
   if (kanjiMatch) {
-    y = kanjiMatch[1];
-    m = kanjiMatch[2];
-    d = kanjiMatch[3];
+    era = kanjiMatch[1] || "";
+    y = kanjiMatch[2];
+    m = kanjiMatch[3];
+    d = kanjiMatch[4];
   } else {
-    const parts = cleaned.split(/[-./\s]/).filter((p) => p !== "");
+    // 元号記号付きかチェック
+    const eraMatch = cleaned.match(/^(令和|平成|昭和|R|H|S)\s*/i);
+    let dateBody = cleaned;
+    if (eraMatch) {
+      era = eraMatch[1];
+      dateBody = cleaned.replace(/^(令和|平成|昭和|R|H|S)\s*/i, "");
+    }
+
+    const parts = dateBody.split(/[-./\s]/).filter((p) => p !== "");
     if (parts.length >= 3) {
       y = parts[0];
       m = parts[1];
       d = parts[2];
     } else {
-      const digits = cleaned.replace(/[^\d]/g, "");
+      const digits = dateBody.replace(/[^\d]/g, "");
       if (digits.length === 6) {
         y = digits.substring(0, 2);
         m = digits.substring(2, 4);
@@ -201,8 +162,13 @@ export function parseFlexibleDate(dateStr: string = ""): ParsedDate {
   const trimZero = (val: string) => (val ? String(parseInt(val, 10)) : "");
   const padZero = (val: string) => (val ? String(parseInt(val, 10)).padStart(2, "0") : "00");
 
+  const trimmedY = trimZero(y);
+  const yearWithEra = era ? `${era}${trimmedY}` : trimmedY;
+
   return {
-    year: trimZero(y),
+    era,
+    year: trimmedY,
+    yearWithEra,
     month: trimZero(m),
     day: trimZero(d),
     padded6: y && m && d ? `${padZero(y)}${padZero(m)}${padZero(d)}` : "",
