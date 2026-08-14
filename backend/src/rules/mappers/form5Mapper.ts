@@ -57,7 +57,7 @@ export function buildForm5Data(
 
   const cleanClaimHospName = stripHospitalSuffix(hospName);
 
-  // 5. 各種日付
+  // 5. 各種日付の分解
   const birthYmd = parseFlexibleDate(v(["生年月日(例: 55年5月15日→550515)", "生年月日"]));
   const injuryYmd = parseFlexibleDate(v(["負傷年月日(例: 令和8年8月29日→080829)", "負傷年月日"]));
   const proofDateYmd = parseFlexibleDate(v(["事業主証明年月日(例: 令和8年7月29日)", "事業主証明年月日"]));
@@ -120,9 +120,12 @@ export function buildForm5Data(
     "Company_Name": v(["証明会社名(事業の名称)", "証明会社名"]),
     "Company_Address": wrapText(v(["証明会社住所(事業場の所在地)", "証明会社住所"]), 28),
     "Representative's_name": v(["代表者職氏名(例: 代表取締役 山田 太郎)", "代表者職氏名"]),
-    "Year_of_proof_of_fact": proofDateYmd.year,
+
+    // 事業主証明年月日（年の前に入力どおりの元号＋数字を表示）
+    "Year_of_proof_of_fact": proofDateYmd.yearWithEra,
     "Month_of_Proof_of_Fact": proofDateYmd.month,
     "The_day_of_proof_of_facts": proofDateYmd.day,
+
     "Company_tel_area": compPhone.area,
     "Company_tel_city": compPhone.city,
     "Company_tel_num": compPhone.num,
@@ -142,15 +145,20 @@ export function buildForm5Data(
     "claimant_tel_area": workerPhone.area,
     "claimant_tel_city": workerPhone.city,
     "claimant_tel_num": workerPhone.num,
-    "Year_of_entry": fillDateYmd.year,
+
+    // 記入日（年の前に入力どおりの元号＋数字を表示）
+    "Year_of_entry": fillDateYmd.yearWithEra,
     "Month_of_entry": fillDateYmd.month,
     "Date_of_entry": fillDateYmd.day,
 
+    // 裏面項目
     "Multiple": multipleRaw === "有" ? "〇" : "",
     "Number_of_workplaces": toHalfWidth(v(["表面以外の就業先の数(数字のみ)", "表面以外の就業先の数"])),
     "Special_Insurance_num": v(["特別加入の労働保険番号"]),
     "Name_of_Special_Member_Organization": v(["労働保険事務組合等の名称"]),
-    "Year_of_joining": joiningDateYmd.year,
+
+    // 特別加入日（年の前に入力どおりの元号＋数字を表示）
+    "Year_of_joining": joiningDateYmd.yearWithEra,
     "Joining_Month": joiningDateYmd.month,
     "Joining_date": joiningDateYmd.day,
   };
