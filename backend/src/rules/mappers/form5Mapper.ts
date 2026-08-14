@@ -17,18 +17,22 @@ export function buildForm5Data(
 ): MappedFormData {
   const v = (keys: string | string[]) => getVal(rawInput, keys);
 
-  // 1. 本人共通情報（濁点分離適用）
+  // 1. 本人共通情報
   const workerName = v(["氏名(漢字)", "氏名"]);
+
+  // ★氏名フリガナのみ：マス目印字用に濁点・半濁点を独立分離
   const rawNameKana = v(["氏名フリガナ(全角カタカナ・姓と名の間にスペース)", "氏名フリガナ"]);
   const nameInKatakana = formatKatakanaWithDakuon(rawNameKana).slice(0, 16);
 
   const prefStr = v(["住所都道府県"]);
+  // ★住所フリガナ：通常印字のため濁点分離は行わない
   const rawPrefKana = v(["住所都道府県フリガナ"]);
-  const prefKana = formatKatakanaWithDakuon(rawPrefKana).slice(0, 27);
+  const prefKana = rawPrefKana.slice(0, 27);
 
   const cityStr = v(["住所市町村以降"]);
+  // ★住所フリガナ：通常印字のため濁点分離は行わない
   const rawCityKana = v(["住所市町村以降フリガナ"]);
-  const addressInKana = formatKatakanaWithDakuon(rawCityKana).slice(0, 27);
+  const addressInKana = rawCityKana.slice(0, 27);
 
   const fullAddress = prefStr + cityStr;
 
