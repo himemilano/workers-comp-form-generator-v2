@@ -26,39 +26,45 @@ export function toHalfWidth(str: string = ""): string {
 }
 
 /**
- * キーバリューオブジェクトから値を取得する（厳格な完全一致判定）
+ * 他の項目を破壊せず、競合する特定ペア（漢字/カナ、区分/時/分）のみを厳密分離するgetVal
  */
 export function getVal(rawInput: Record<string, string>, keys: string | string[]): string {
   if (!rawInput) return "";
 
   const keyList = Array.isArray(keys) ? keys : [keys];
+  const norm = (s: string) => s.replace(/[\s\u3000]/g, "").toLowerCase();
 
-  // ひな型注記のコロン分割ゴミを除去
-  const cleanValue = (val: string): string => {
-    if (!val) return "";
-    let s = val.trim();
-    if (s.includes("):") || s.includes("）：") || s.includes(") :") || s.includes("） :")) {
-      const parts = s.split(/[\)）]\s*[:：]\s*/);
-      s = parts[parts.length - 1].trim();
-    }
-    return s;
-  };
+  for (const query of keyList) {
+    if (!query) continue;
+    const normQuery = norm(query);
 
-  // 空白除去 & カッコを半角統一（前置・後置のあいまい比較は行わない）
-  const normalizeKey = (s: string) =>
-    s.replace(/[\s\u3000]/g, "").replace(/（/g, "(").replace(/）/g, ")");
-
-  for (const queryKey of keyList) {
-    if (!queryKey) continue;
-
-    const normQuery = normalizeKey(queryKey);
-
-    // 完全一致のみを探索
     for (const [rKey, rVal] of Object.entries(rawInput)) {
-      if (normalizeKey(rKey) === normQuery) {
-        const extracted = cleanValue(rVal);
-        if (extracted !== "") {
-          return extracted;
+      const normRKey = norm(rKey);
+
+      // --- ピンポイント競合ガード ---
+      // 1. フリガナの混同防止
+      if (normQuery.includes("フリガナ") !== normRKey.includes("フリガナ")) continue;
+
+      // 2. 区分（AM/PM）の混同防止
+      if (normQuery.includes("区分") !== normRKey.includes("区分")) continue;
+
+      // 3. 時・分の混同防止
+      if (normQuery.includes("時") !== normRKey.includes("時")) continue;
+      if (normQuery.includes("分") !== normRKey.includes("分")) continue;
+
+      // カッコ（(例:...)など）を除去したベース名で比較
+      const baseQuery = normQuery.replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
+      const baseRKey = normRKey.replace(/\([^)]*\)/g, "").replace(/（[^）]*）/g, "");
+
+      if (baseRKey.includes(baseQuery) || baseQuery.includes(baseRKey)) {
+        let val = rVal.trim();
+        // コロンゴミ除去
+        if (val.includes("):") || val.includes("）：") || val.includes(") :") || val.includes("） :")) {
+          const parts = val.split(/[\)）]\s*[:：]\s*/);
+          val = parts[parts.length - 1].trim();
+        }
+        if (val !== "") {
+          return val;
         }
       }
     }
