@@ -10,95 +10,196 @@ import {
 } from "../utils/textUtils";
 
 /**
- * 様式第6号専用データマッパー
- * Form5で保存された最新キー構造の生データ(rawInput)から正しく値を引き継ぎます。
+ * 病院・診療所・クリニックの末尾単語を除去するヘパー関数
  */
-export function buildForm6Data(rawInput: RawInputData): MappedFormData {
-  const v = (key: string) => getVal(rawInput, key);
+function cleanHospitalName(name: string): string {
+  if (!name) return "";
+  return name.trim().replace(/(病院|診療所|クリニック)$/, "");
+}
 
-  // 1. 本人入力の14桁労働保険番号を取得し、前2桁と残り12桁に分割
+/**
+ * 様式第6号専用データマッパー
+ * 転院回数に応じて 1枚 または 2枚分（配列）の MappedFormData を返却します。
+ */
+export function buildForm6Data(
+  form5RawInput: RawInputData,
+  form6RawInput: RawInputData
+): MappedFormData[] {
+  // Form5 と Form6 の入力データを統合（Form6の入力値を優先）
+  const combinedInput: RawInputData = {
+    ...form5RawInput,
+    ...form6RawInput
+  };
+
+  const v = (key: string) => getVal(combinedInput, key);
+
+  // 1. 労働保険番号 (14桁: 前2桁 / 残り12桁)
   const rawLaborIns = v("労働保険番号(14桁・ハイフンなし)") || v("労働保険番号");
   const full14Digits = padGridValue(rawLaborIns, 14);
+  const laborInsFirst = full14Digits.slice(0, 2);
+  const laborInsLast  = full14Digits.slice(2, 14);
 
-  const laborInsFirst = full14Digits.slice(0, 2);  // 前2桁（府県コード）
-  const laborInsLast  = full14Digits.slice(2, 14); // 残り12桁
+  // 2. 年金証書番号の分解
+  const rawPension = toHalfWidth(v("年金証書番号") || "");
+  const pensionJurisdiction = rawPension.slice(0, 2);
+  const pensionType         = rawPension.slice(2, 3);
+  const pensionNumber       = rawPension.slice(3);
 
-  // 2. 郵便番号・電話番号
+  // 3. 本人・会社・郵便番号・電話番号
   const workerZip   = parseZip(v("本人郵便番号(例: 123-4567)"));
   const workerPhone = parsePhone(v("本人電話番号(例: 090-1234-5678)"));
   const compZip     = parseZip(v("証明会社郵便番号(例: 604-8130)"));
   const compPhone   = parsePhone(v("証明会社電話番号(例: 075-221-8800)"));
 
-  // 3. 日付分解
+  // 4. 日付分解
   const birthYmd     = parseFlexibleDate(v("生年月日(例: 55年5月15日→550515)"));
   const injuryYmd    = parseFlexibleDate(v("負傷年月日(例: 令和8年8月29日→080829)"));
   const proofDateYmd = parseFlexibleDate(v("事業主証明年月日(例: 令和8年7月29日)"));
   const fillDateYmd  = parseFlexibleDate(v("記入日(例: 令和8年8月30日)"));
 
-  // 4. 氏名・住所・監督署
+  // 5. 本人情報（届出人＝本人前提）
   const workerName  = v("氏名(漢字)");
   const prefStr     = v("住所都道府県");
   const cityStr     = v("住所市町村以降");
   const fullAddress = prefStr + cityStr;
+
+  const sexVal = v("性別(男性は1、女性は3と入力)");
+  const isMale   = sexVal === "1" ? "○" : "";
+  const isFemale = sexVal === "3" ? "○" : "";
 
   let inspectorateOffice = v("管轄労働基準監督署名(例: 京都南)");
   if (inspectorateOffice && !inspectorateOffice.endsWith("労働基準監督署")) {
     inspectorateOffice += "労働基準監督署";
   }
 
-  return {
-    // 【Form6専用：労働保険番号の分割割り当て】
-    "Labor_insurance_No._first": laborInsFirst,
-    "Labor_insurance_No._last":  laborInsLast,
+  // 6. 各病院情報の取得
+  // 初診（変更前）病院
+  const h1Name    = v("変更前病院名") || v("指定病院等の名称");
+  const h1Address = v("変更前病院住所") || v("指定病院等の所在地");
+  const h1Zip     = parseZip(v("変更前病院郵便番号") || v("指定病院等郵便番号"));
 
-    // 【引き継ぎ・基本項目（新キー対応）】
-    "sex": v("性別(男性は1、女性は3と入力)"),
-    "Date_of_birth,Japanese_era": v("生年月日の和暦(昭和は5, 平成は7, 令和は9と数字のみ入力)"),
-    "date_of_birth": `${birthYmd.year}${birthYmd.month}${birthYmd.day}`,
-    "Date_of_injury,Japanese_era": "9",
-    "Date_of_injury": `${injuryYmd.year}${injuryYmd.month}${injuryYmd.day}`,
-    "Name_in_Katakana": v("氏名フリガナ(全角カタカナ・姓と名の間にスペース)").slice(0, 16),
-    "worker_name": workerName,
-    "age": toHalfWidth(v("年齢(数字のみ)")),
+  // 1回目転院先（変更後）
+  const h2Name    = v("変更後病院名");
+  const h2Address = v("変更後病院住所");
+  const h2Zip     = parseZip(v("変更後病院郵便番号") || v("1回目変更後病院郵便番号"));
+  const h2Reason  = v("変更理由") || v("1回目変更理由");
 
-    "zip_first": workerZip.first,
-    "zip_last": workerZip.last,
+  // 2回目転院先（オプション）
+  const h3Name    = v("2回目転院先病院名") || v("転院先通院先病院名");
+  const h3Address = v("2回目転院先病院住所");
+  const h3Zip     = parseZip(v("2回目転院先病院郵便番号"));
+  const h3Reason  = v("2回目変更理由");
 
-    "Personal_address_and_prefecture,and_phonetic_spelling": v("住所都道府県フリガナ"),
-    "Personal_address_and_prefecture": prefStr,
-    "Personal_address_in_kana": v("住所市町村以降フリガナ"),
-    "Personal_address": cityStr,
-    "Job_type": v("職種"),
+  // 7 欄（傷病補償年金受給後の転院先）
+  const pensionHospName    = v("年金受給後転院先病院名");
+  const pensionHospAddress = v("年金受給後転院先住所");
+  const pensionHospZip     = parseZip(v("年金受給後転院先郵便番号"));
 
-    "accident_detail": wrapText(v("災害の原因と発生状況(詳しく)"), 30),
-    "Location_and_condition_of_the_injury": wrapText(v("傷病の部位及び状態"), 25),
-
-    "Company_Name": v("証明会社名(事業の名称)"),
-    "Company_Address": wrapText(v("証明会社住所(事業場の所在地)"), 28),
-    "Representative's_name": v("代表者職氏名(例: 代表取締役 山田 太郎)"),
-    "Year_of_proof_of_fact": proofDateYmd.year,
-    "Month_of_Proof_of_Fact": proofDateYmd.month,
-    "The_day_of_proof_of_facts": proofDateYmd.day,
-    "Company_tel_area": compPhone.area,
-    "Company_tel_city": compPhone.city,
-    "Company_tel_num": compPhone.num,
-    "Company_zip_first": compZip.first,
-    "Company_zip_last": compZip.last,
-
+  // --- 共通項目ベースオブジェクト ---
+  const commonData: MappedFormData = {
     "Area_of_the_Labor_Standards_Inspection_Office": inspectorateOffice,
     "Year_of_entry": fillDateYmd.year,
     "Month_of_entry": fillDateYmd.month,
     "Date_of_entry": fillDateYmd.day,
+    "zip_first": workerZip.first,
+    "zip_last": workerZip.last,
     "claimant_tel_area": workerPhone.area,
     "claimant_tel_city": workerPhone.city,
     "claimant_tel_num": workerPhone.num,
-    "Claimant's_address": fullAddress,
-    "Claimant's_name": workerName,
 
-    // Form 6 特有項目
-    "Medical_expenses_claimed": v("請求金額") || "",
-    "Bank_name": v("振込先銀行名") || "",
-    "Branch_name": v("振込先支店名") || "",
-    "Account_number": v("口座番号") || ""
+    // 届け出人＝本人
+    "notification_Address": fullAddress,
+    "notification_Name": workerName,
+
+    "Labor_insurance_No._first": laborInsFirst,
+    "Labor_insurance_No._last": laborInsLast,
+    "worker_name": workerName,
+    "male": isMale,
+    "female": isFemale,
+    "Year_of_birth": birthYmd.year,
+    "Birth_month": birthYmd.month,
+    "Birth_day": birthYmd.day,
+    "age": toHalfWidth(v("年齢(数字のみ)")),
+    "Claimant's_address": fullAddress,
+    "Job_type": v("職種"),
+
+    "injury_year": injuryYmd.year,
+    "injury_month": injuryYmd.month,
+    "injury_day": injuryYmd.day,
+    "injury_time_am": v("災害発生時間(午前なら〇)") ? "○" : "",
+    "injury_time_pm": v("災害発生時間(午後なら〇)") ? "○" : "",
+    "disaster_minute": v("災害発生分"),
+
+    "accident_detail": wrapText(v("災害の原因と発生状況(詳しく)"), 30),
+    "Location_and_condition_of_the_injury": wrapText(v("傷病の部位及び状態"), 25),
+
+    "Year_of_proof_of_fact": proofDateYmd.year,
+    "Month_of_Proof_of_Fact": proofDateYmd.month,
+    "The_day_of_proof_of_fact": proofDateYmd.day,
+    "Company_Name": v("証明会社名(事業の名称)"),
+    "Company_zip_first": compZip.first,
+    "Company_zip_last": compZip.last,
+    "Company_tel_area": compPhone.area,
+    "Company_tel_city": compPhone.city,
+    "Company_tel_num": compPhone.num,
+    "Company_Address": wrapText(v("証明会社住所(事業場の所在地)"), 28),
+    "Representative's_name": v("代表者職氏名(例: 代表取締役 山田 太郎)"),
+
+    "Pension_certificate_jurisdiction": pensionJurisdiction,
+    "Pension_certificate_type": pensionType,
+    "Pension_certificate_number": pensionNumber,
+
+    // ⑦欄
+    "pension_Hospital": pensionHospName,
+    "pension_Hospital_Address": pensionHospAddress,
+    "pension_Hospital_zip_first": pensionHospZip.first,
+    "pension_Hospital_zip_last": pensionHospZip.last
   };
+
+  const results: MappedFormData[] = [];
+
+  // --- 1枚目（初診 → 1回目転院）の生成 ---
+  const page1Data: MappedFormData = {
+    ...commonData,
+    "Claim_Hospital_name": cleanHospitalName(h1Name),
+
+    // 変更前（初診）
+    "Hospital_name": h1Name,
+    "Hospital_Address": h1Address,
+    "Hospital_zip_first": h1Zip.first,
+    "Hospital_zip_last": h1Zip.last,
+
+    // 変更後（1回目転院先）
+    "after_Hospital": h2Name,
+    "after_Hospital_Address": h2Address,
+    "after_Hospital_zip_first": h2Zip.first,
+    "after_Hospital_zip_last": h2Zip.last,
+    "Reason_for_after_Hospital": wrapText(h2Reason, 25)
+  };
+  results.push(page1Data);
+
+  // --- 2枚目（1回目転院先 → 2回目転院先）の生成（2回目転院先がある場合のみ） ---
+  if (h3Name) {
+    const page2Data: MappedFormData = {
+      ...commonData,
+      // 2枚目の請求先病院名は 1回目転院先病院名（加工済み）
+      "Claim_Hospital_name": cleanHospitalName(h2Name),
+
+      // 変更前（1回目転院先）へシフト
+      "Hospital_name": h2Name,
+      "Hospital_Address": h2Address,
+      "Hospital_zip_first": h2Zip.first,
+      "Hospital_zip_last": h2Zip.last,
+
+      // 変更後（2回目転院先）へシフト
+      "after_Hospital": h3Name,
+      "after_Hospital_Address": h3Address,
+      "after_Hospital_zip_first": h3Zip.first,
+      "after_Hospital_zip_last": h3Zip.last,
+      "Reason_for_after_Hospital": wrapText(h3Reason, 25)
+    };
+    results.push(page2Data);
+  }
+
+  return results;
 }
