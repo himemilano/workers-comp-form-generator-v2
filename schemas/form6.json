@@ -20,7 +20,7 @@
         { "id": "notification_Address", "x": 268, "y": 687, "fontSize": 10 },
         { "id": "notification_Name", "x": 267, "y": 656, "fontSize": 10 },
         { "id": "Labor_insurance_No._first", "x": 30, "y": 561, "fontSize": 10, "pitch": 16.8 },
-        { "id": "Labor_insurance_No._last", "x": 68, "y": 561, "fontSize": 10, "pitch": 15 },
+        { "id": "Labor_insurance_No._last", "x": 68, "y": 561, "fontSize": 10, "pitch": 14 },
         { "id": "worker_name", "x": 297, "y": 607, "fontSize": 10 },
         { "id": "male", "x": 415, "y": 596, "fontSize": 11 },
         { "id": "female", "x": 436, "y": 596, "fontSize": 11 },
