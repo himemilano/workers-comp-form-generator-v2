@@ -35,6 +35,7 @@
         { "id": "injury_day", "x": 533, "y": 580, "fontSize": 9 },
         { "id": "injury_time_am", "x": 469, "y": 525, "fontSize": 10 },
         { "id": "injury_time_pm", "x": 467, "y": 514, "fontSize": 10 },
+        { "id": "disaster_hour", "x": 527, "y": 519, "fontSize": 8 },
         { "id": "disaster_minute", "x": 537, "y": 519, "fontSize": 8 },
         { "id": "accident_detail", "x": 33, "y": 451, "fontSize": 10 },
         { "id": "Year_of_proof_of_fact", "x": 38, "y": 348, "fontSize": 10 },
