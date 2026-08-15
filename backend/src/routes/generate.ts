@@ -4,75 +4,77 @@ import { generateForm5PDFs, generateForm6PDFs } from "../pdf/generateForm";
 const router = Router();
 
 /**
- * 様式第5号 生成API
- * POST /api/pdf/form5
+ * Form 5 PDF生成処理ハンドラー
  */
-router.post("/pdf/form5", async (req: Request, res: Response) => {
+const handleForm5 = async (req: Request, res: Response) => {
   try {
     const { inputText } = req.body;
     if (!inputText) {
-      return res.status(400).json({ error: "入力テキスト(inputText)が空です" });
+      return res.status(400).json({ error: "入力データ (inputText) が不足しています。" });
     }
 
     const pdfResults = await generateForm5PDFs(inputText);
-    if (!pdfResults || pdfResults.length === 0) {
-      return res.status(500).json({ error: "様式5号のPDF生成結果が0件です" });
-    }
 
-    const files = pdfResults.map((item) => ({
-      filename: item.filename,
-      base64: Buffer.isBuffer(item.buffer)
-        ? item.buffer.toString("base64")
-        : Buffer.from(item.buffer).toString("base64"),
-      contentType: "application/pdf",
+    // フロントエンドが期待する { filename, base64 } 形式に変換
+    const files = pdfResults.map((result) => ({
+      filename: result.filename,
+      base64: result.buffer.toString("base64"),
     }));
 
-    return res.json({ success: true, files });
+    return res.status(200).json({
+      success: true,
+      files,
+    });
   } catch (error: any) {
-    console.error("❌ [API /pdf/form5] 生成エラー:", error);
+    console.error("❌ [Form5 Generation Error]:", error);
     return res.status(500).json({
-      error: "様式5号のPDF生成に失敗しました",
-      details: error.message,
+      error: "Form5のPDF生成処理に失敗しました。",
+      message: error.message,
     });
   }
-});
+};
 
 /**
- * 様式第6号 生成API
- * POST /api/pdf/form6
+ * Form 6 PDF生成処理ハンドラー
  */
-router.post("/pdf/form6", async (req: Request, res: Response) => {
+const handleForm6 = async (req: Request, res: Response) => {
   try {
     const { form5InputText, form6InputText } = req.body;
     if (!form5InputText || !form6InputText) {
       return res.status(400).json({
-        error: "form5InputText または form6InputText が不足しています",
+        error: "form5InputText および form6InputText の両方が必要です。",
       });
     }
 
     const pdfResults = await generateForm6PDFs(form5InputText, form6InputText);
-    if (!pdfResults || pdfResults.length === 0) {
-      return res.status(400).json({
-        error: "転院先データが存在しないか、PDFが生成されませんでした",
-      });
-    }
 
-    const files = pdfResults.map((item) => ({
-      filename: item.filename,
-      base64: Buffer.isBuffer(item.buffer)
-        ? item.buffer.toString("base64")
-        : Buffer.from(item.buffer).toString("base64"),
-      contentType: "application/pdf",
+    // フロントエンドが期待する { filename, base64 } 形式に変換
+    const files = pdfResults.map((result) => ({
+      filename: result.filename,
+      base64: result.buffer.toString("base64"),
     }));
 
-    return res.json({ success: true, files });
+    return res.status(200).json({
+      success: true,
+      files,
+    });
   } catch (error: any) {
-    console.error("❌ [API /pdf/form6] 生成エラー:", error);
+    console.error("❌ [Form6 Generation Error]:", error);
     return res.status(500).json({
-      error: "様式6号のPDF生成に失敗しました",
-      details: error.message,
+      error: "Form6のPDF生成処理に失敗しました。",
+      message: error.message,
     });
   }
-});
+};
+
+// --- ルーティング登録 ---
+// フロントエンドの呼び出しパス (/api/pdf/form5) および代替パスに対応
+router.post("/pdf/form5", handleForm5);
+router.post("/form5", handleForm5);
+router.post("/generate/form5", handleForm5);
+
+router.post("/pdf/form6", handleForm6);
+router.post("/form6", handleForm6);
+router.post("/generate/form6", handleForm6);
 
 export default router;
