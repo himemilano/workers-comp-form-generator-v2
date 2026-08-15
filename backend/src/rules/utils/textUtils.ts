@@ -253,3 +253,34 @@ export function wrapText(text: string = "", maxChars: number): string {
   }
   return lines.join("\n");
 }
+/**
+ * テキスト（JSON文字列または Key:Value 形式の行）を RawInputData オブジェクトに変換
+ */
+export function parseKeyValueText(inputText: string): Record<string, string> {
+  if (!inputText) return {};
+
+  // JSON形式の場合
+  try {
+    const parsed = JSON.parse(inputText);
+    if (typeof parsed === "object" && parsed !== null) {
+      return parsed;
+    }
+  } catch {
+    // JSONでない場合は Key: Value の行テキストとして解析
+  }
+
+  const result: Record<string, string> = {};
+  const lines = inputText.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const colonIndex = trimmed.indexOf(":");
+    if (colonIndex !== -1) {
+      const key = trimmed.slice(0, colonIndex).trim();
+      const value = trimmed.slice(colonIndex + 1).trim();
+      result[key] = value;
+    }
+  }
+  return result;
+}
