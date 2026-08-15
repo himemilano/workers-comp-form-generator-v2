@@ -38,12 +38,12 @@ function findFile(fileName: string): string {
  * テンプレートJSONとマッピングデータを読み込み、pdf-lib で PDF Bufferを生成する
  */
 export async function renderPdf(jsonFileName: string, mappedData: Record<string, string>): Promise<Buffer> {
-  // 1. JSON テンプレートの読み込み (schemas フォルダから取得)
+  // 1. JSON テンプレートの読み込み
   const jsonPath = findFile(jsonFileName);
   const templateContent = fs.readFileSync(jsonPath, "utf-8");
   const templateConfig = JSON.parse(templateContent);
 
-  // 2. 背景PDF (form5.pdf等) の読み込み (templates フォルダから取得)
+  // 2. 背景PDF (form5.pdf等) の読み込み
   const pdfFileName = templateConfig.template || `${path.basename(jsonFileName, ".json")}.pdf`;
   const pdfPath = findFile(pdfFileName);
   const pdfBytes = fs.readFileSync(pdfPath);
@@ -57,7 +57,7 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
 
   const pages = pdfDoc.getPages();
 
-  // 4. 各ページのフィールド描画 (ピッチ・改行幅・フォントサイズ対応)
+  // 4. 各ページのフィールド描画
   if (Array.isArray(templateConfig.pages)) {
     for (const pageConfig of templateConfig.pages) {
       const pageIndex = pageConfig.page - 1;
@@ -67,13 +67,51 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
       if (!Array.isArray(pageConfig.fields)) continue;
 
       for (const field of pageConfig.fields) {
-        const val = mappedData[field.id];
+        let val = mappedData[field.id];
         if (!val) continue;
 
-        const strVal = String(val);
-        const fontSize = field.fontSize || 10;
+        let strVal = String(val);
+        let fontSize = field.fontSize || 10;
         const x = field.x;
         const y = field.y;
+
+        // --- 個別ピンポイント制御 (Form 5 等) ---
+
+        // ① 事業場の名称及び使用者職氏名: 30文字を超えたらフォント縮小 (下限8pt)
+        if (field.id === "Company_name_and_representative's_name" || field.id === "Company_Name") {
+          if (strVal.length > 30) {
+            fontSize = Math.max(8, fontSize * (30 / strVal.length));
+          }
+        }
+
+        // ② 請求人住所: 25文字を超えたらフォント縮小 (下限8pt)
+        if (field.id === "Claimant's_address") {
+          if (strVal.length > 25) {
+            fontSize = Math.max(8, fontSize * (25 / strVal.length));
+          }
+        }
+
+        // ③ 請求先病院名: 末尾の病院・診療所・薬局・クリニックを削除、8文字で折り返し、詰めた行間(11pt)で印字
+        if (field.id === "Claim_Hospital_name") {
+          strVal = strVal.replace(/(病院|診療所|薬局|クリニック)$/, "");
+          const maxChars = 8;
+          const lineHeight = 11; // 1行目と2行目の間隔を自然な位置（11pt）に設定
+          const lines: string[] = [];
+          for (let i = 0; i < strVal.length; i += maxChars) {
+            lines.push(strVal.substring(i, i + maxChars));
+          }
+          lines.forEach((lineText, lineIdx) => {
+            page.drawText(lineText, {
+              x: x,
+              y: y - lineIdx * lineHeight,
+              size: fontSize,
+              font: customFont,
+            });
+          });
+          continue; // 描画完了のため次のフィールドへ
+        }
+
+        // --- 通常描画ロジック ---
 
         // ピッチ指定（マス目印字）がある場合
         if (field.pitch) {
@@ -86,7 +124,7 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
             });
           }
         }
-        // 複数行・最大文字数指定（事故概要等）がある場合
+        // 複数行・最大文字数指定（事故概要等、JSONでmaxCharsが指定されている場合）
         else if (field.maxChars && field.maxChars > 0) {
           const maxChars = field.maxChars;
           const lineHeight = field.lineHeight || fontSize * 1.5;
@@ -103,7 +141,7 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
             });
           });
         }
-        // 通常のテキスト描画
+        // 通常の1行テキスト描画
         else {
           page.drawText(strVal, {
             x: x,
