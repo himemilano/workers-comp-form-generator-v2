@@ -4,17 +4,21 @@ import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 
 /**
- * ファイルを複数ディレクトリから探索して取得するヘルパー関数
+ * schemas (PDF/JSON) および backend/src/fonts (フォント) からファイルを探索する関数
  */
 function findFile(fileName: string): string {
   const candidatePaths = [
+    // 1. schemas フォルダ内の探索 (ルート基準および backend 基準)
     path.join(process.cwd(), "schemas", fileName),
-    path.join(process.cwd(), "public", fileName),
-    path.join(process.cwd(), "public", "fonts", fileName),
     path.join(process.cwd(), "..", "schemas", fileName),
-    path.join(process.cwd(), "..", "public", fileName),
     path.join(__dirname, "..", "..", "..", "schemas", fileName),
     path.join(__dirname, "..", "..", "schemas", fileName),
+
+    // 2. backend/src/fonts フォルダ内の探索
+    path.join(process.cwd(), "src", "fonts", fileName),
+    path.join(process.cwd(), "backend", "src", "fonts", fileName),
+    path.join(__dirname, "..", "fonts", fileName),
+    path.join(__dirname, "..", "..", "src", "fonts", fileName),
   ];
 
   const foundPath = candidatePaths.find((p) => fs.existsSync(p));
@@ -33,52 +37,21 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
   const templateContent = fs.readFileSync(jsonPath, "utf-8");
   const templateConfig = JSON.parse(templateContent);
 
-  // 2. 背景PDF (form5.pdf 等) の読み込み
+  // 2. 背景PDF (form5.pdf等) の読み込み
   const pdfFileName = templateConfig.template || `${path.basename(jsonFileName, ".json")}.pdf`;
   const pdfPath = findFile(pdfFileName);
   const pdfBytes = fs.readFileSync(pdfPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
 
-  // 3. 日本語フォントの登録 & 埋め込み
+  // 3. 日本語フォント (IPAexGothic.ttf) の登録 & 埋め込み
   pdfDoc.registerFontkit(fontkit);
-  let fontPath: string;
-  try {
-    // 優先フォントファイルの探索（必要に応じて追加可能）
-    fontPath = findFile("IPAexGothic.ttf");
-  } catch {
-    try {
-      fontPath = findFile("NotoSansJP-Regular.ttf");
-    } catch {
-      // schemas や public 内にある .ttf / .otf ファイルを自動検索
-      const searchDirs = [
-        path.join(process.cwd(), "schemas"),
-        path.join(process.cwd(), "public"),
-        path.join(process.cwd(), "public", "fonts"),
-      ];
-      let matchedFont = "";
-      for (const dir of searchDirs) {
-        if (fs.existsSync(dir)) {
-          const files = fs.readdirSync(dir);
-          const fontFile = files.find((f) => f.endsWith(".ttf") || f.endsWith(".otf"));
-          if (fontFile) {
-            matchedFont = path.join(dir, fontFile);
-            break;
-          }
-        }
-      }
-      if (!matchedFont) {
-        throw new Error("日本語フォントファイル (.ttf / .otf) が schemas または public ディレクトリ内に見つかりません。");
-      }
-      fontPath = matchedFont;
-    }
-  }
-
+  const fontPath = findFile("IPAexGothic.ttf");
   const fontBytes = fs.readFileSync(fontPath);
   const customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
 
   const pages = pdfDoc.getPages();
 
-  // 4. 各ページのフィールド描画
+  // 4. 各ページのフィールド描画 (ピッチ・改行幅・フォントサイズ対応)
   if (Array.isArray(templateConfig.pages)) {
     for (const pageConfig of templateConfig.pages) {
       const pageIndex = pageConfig.page - 1;
