@@ -10,7 +10,7 @@ import {
 } from "../utils/textUtils";
 
 /**
- * 病院・診療所・クリニックの末尾単語を除去するヘパー関数
+ * 病院・診療所・クリニックの末尾単語を除去するヘルパー関数
  */
 function cleanHospitalName(name: string): string {
   if (!name) return "";
@@ -51,28 +51,39 @@ export function buildForm6Data(
   const compZip     = parseZip(v("証明会社郵便番号(例: 604-8130)"));
   const compPhone   = parsePhone(v("証明会社電話番号(例: 075-221-8800)"));
 
-  // 4. 日付分解
-  const birthYmd     = parseFlexibleDate(v("生年月日(例: 55年5月15日→550515)"));
-  const injuryYmd    = parseFlexibleDate(v("負傷年月日(例: 令和8年8月29日→080829)"));
-  const proofDateYmd = parseFlexibleDate(v("事業主証明年月日(例: 令和8年7月29日)"));
-  const fillDateYmd  = parseFlexibleDate(v("記入日(例: 令和8年8月30日)"));
+  // 4. 日付分解（form5と同等の処理）
+  const birthYmd      = parseFlexibleDate(v("生年月日(例: 55年5月15日→550515)") || v("③ 労働者の生年月日") || v("生年月日"));
+  const injuryYmd     = parseFlexibleDate(v("負傷年月日(例: 令和8年8月29日→080829)") || v("④ 負傷又は発病年月日") || v("負傷年月日"));
+  const proofDateYmd = parseFlexibleDate(v("事業主証明年月日(例: 令和8年7月29日)") || v("事業主証明年月日"));
+  const fillDateYmd  = parseFlexibleDate(v("記入日(例: 令和8年8月30日)") || v("提出年月日") || v("記入日"));
 
   // 5. 本人情報（届出人＝本人前提）
   const workerName  = v("氏名(漢字)");
   const prefStr     = v("住所都道府県");
   const cityStr     = v("住所市町村以降");
-  const fullAddress = prefStr + cityStr;
+  const fullAddress = v("労働者住所") || (prefStr + cityStr);
 
   const sexVal = v("性別(男性は1、女性は3と入力)");
   const isMale   = sexVal === "1" ? "○" : "";
   const isFemale = sexVal === "3" ? "○" : "";
 
-  let inspectorateOffice = v("管轄労働基準監督署名(例: 京都南)");
-  if (inspectorateOffice && !inspectorateOffice.endsWith("労働基準監督署")) {
-    inspectorateOffice += "労働基準監督署";
-  }
+  // 監督署名（自動補全削除・入力値をそのまま採用）
+  const inspectorateOffice = v("管轄労働基準監督署名(例: 京都南)") || v("労働基準監督署名") || v("監督署");
 
-  // 6. 各病院情報の取得
+  // 6. 負傷時刻の判別 (AM/PM判別・時・分)
+  const rawTimeType = v("負傷時刻区分(AM または PMと入力)") || v("負傷時刻区分") || v("災害発生時間(午前なら〇)");
+  const upperTimeType = rawTimeType.toUpperCase();
+  const isAM = upperTimeType.includes("AM") || rawTimeType === "午前" || rawTimeType === "○";
+  const isPM = upperTimeType.includes("PM") || rawTimeType === "午後";
+
+  const disasterHour   = toHalfWidth(v("負傷時刻(時・数字のみ)") || v("負傷時刻(時)") || v("disaster_hour"));
+  const disasterMinute = toHalfWidth(v("負傷時刻(分・数字のみ)") || v("負傷時刻(分)") || v("disaster_minute") || v("災害発生分"));
+
+  // 7. 各病院情報の取得
+  // 指定病院番号
+  const h1DesignatedNo = v("初診病院の労災指定病院番号") || v("指定病院等の労災指定病院番号") || v("designated_Hospital");
+  const h2DesignatedNo = v("転院先の（1回目のみ）労災指定病院番号") || v("1回目転院先労災指定病院番号");
+
   // 初診（変更前）病院
   const h1Name    = v("変更前病院名") || v("指定病院等の名称");
   const h1Address = v("変更前病院住所") || v("指定病院等の所在地");
@@ -90,7 +101,7 @@ export function buildForm6Data(
   const h3Zip     = parseZip(v("2回目転院先病院郵便番号"));
   const h3Reason  = v("2回目変更理由");
 
-  // 7 欄（傷病補償年金受給後の転院先）
+  // ⑦ 欄（傷病補償年金受給後の転院先）
   const pensionHospName    = v("年金受給後転院先病院名");
   const pensionHospAddress = v("年金受給後転院先住所");
   const pensionHospZip     = parseZip(v("年金受給後転院先郵便番号"));
@@ -126,11 +137,12 @@ export function buildForm6Data(
     "injury_year": injuryYmd.year,
     "injury_month": injuryYmd.month,
     "injury_day": injuryYmd.day,
-    "injury_time_am": v("災害発生時間(午前なら〇)") ? "○" : "",
-    "injury_time_pm": v("災害発生時間(午後なら〇)") ? "○" : "",
-    "disaster_minute": v("災害発生分"),
+    "injury_time_am": isAM ? "○" : "",
+    "injury_time_pm": isPM ? "○" : "",
+    "disaster_hour": disasterHour,
+    "disaster_minute": disasterMinute,
 
-    "accident_detail": wrapText(v("災害の原因と発生状況(詳しく)"), 30),
+    "accident_detail": v("災害の原因と発生状況(詳しく)") || v("災害の原因及び発生状況"),
     "Location_and_condition_of_the_injury": wrapText(v("傷病の部位及び状態"), 25),
 
     "Year_of_proof_of_fact": proofDateYmd.year,
@@ -161,6 +173,7 @@ export function buildForm6Data(
   // --- 1枚目（初診 → 1回目転院）の生成 ---
   const page1Data: MappedFormData = {
     ...commonData,
+    "designated_Hospital": h1DesignatedNo,
     "Claim_Hospital_name": cleanHospitalName(h1Name),
 
     // 変更前（初診）
@@ -182,6 +195,7 @@ export function buildForm6Data(
   if (h3Name) {
     const page2Data: MappedFormData = {
       ...commonData,
+      "designated_Hospital": h2DesignatedNo || h1DesignatedNo,
       // 2枚目の請求先病院名は 1回目転院先病院名（加工済み）
       "Claim_Hospital_name": cleanHospitalName(h2Name),
 
