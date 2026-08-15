@@ -1,6 +1,6 @@
 import { buildForm5Data } from "../rules/mappers/form5Mapper";
 import { buildForm6Data } from "../rules/mappers/form6Mapper";
-import { parseKeyValueText } from "../utils/textUtils";
+import { parseKeyValueText } from "../rules/utils/textUtils";
 import { renderPdf } from "./pdfRenderer";
 
 /**
@@ -23,8 +23,7 @@ export async function generateForm5PDFs(inputText: string) {
     buffer: hospitalBuffer,
   });
 
-  // 2. 薬局用データが存在する場合（薬局名入力がある等）、薬局用PDFも生成
-  // ※必要に応じて薬局名チェック等の条件判定を挟むことも可能です
+  // 2. 薬局用PDF生成
   const pharmacyBuffer = await renderPdf("form5.json", pharmacyData);
   pdfResults.push({
     filename: "様式第5号_療養補償給付たる療養の費用請求書_薬局用.pdf",
