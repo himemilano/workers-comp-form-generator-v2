@@ -51,6 +51,7 @@
         { "id": "Representative's_name", "x": 256, "y": 307, "fontSize": 10 },
         { "id": "Hospital_name", "x": 198, "y": 266, "fontSize": 10 },
         { "id": "Hospital_Address", "x": 199, "y": 240, "fontSize": 10 },
+        { "id": "designated_Hospital", "x": 520, "y": 276, "fontSize": 9 },
         { "id": "Hospital_zip_first", "x": 480, "y": 256, "fontSize": 9 },
         { "id": "Hospital_zip_last", "x": 528, "y": 255, "fontSize": 9 },
         { "id": "Location_and_condition_of_the_injury", "x": 201, "y": 36, "fontSize": 10 },
