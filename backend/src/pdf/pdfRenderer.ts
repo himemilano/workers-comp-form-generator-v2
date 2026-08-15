@@ -4,17 +4,23 @@ import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 
 /**
- * schemas (PDF/JSON) および backend/src/fonts (フォント) からファイルを探索する関数
+ * templates (PDF), schemas (JSON), backend/src/fonts (フォント) からファイルを探索する関数
  */
 function findFile(fileName: string): string {
   const candidatePaths = [
-    // 1. schemas フォルダ内の探索 (ルート基準および backend 基準)
+    // 1. templates フォルダ内の探索 (背景PDFの置き場)
+    path.join(process.cwd(), "templates", fileName),
+    path.join(process.cwd(), "..", "templates", fileName),
+    path.join(__dirname, "..", "..", "..", "templates", fileName),
+    path.join(__dirname, "..", "..", "templates", fileName),
+
+    // 2. schemas フォルダ内の探索 (JSON設定の置き場)
     path.join(process.cwd(), "schemas", fileName),
     path.join(process.cwd(), "..", "schemas", fileName),
     path.join(__dirname, "..", "..", "..", "schemas", fileName),
     path.join(__dirname, "..", "..", "schemas", fileName),
 
-    // 2. backend/src/fonts フォルダ内の探索
+    // 3. backend/src/fonts フォルダ内の探索 (フォントの置き場)
     path.join(process.cwd(), "src", "fonts", fileName),
     path.join(process.cwd(), "backend", "src", "fonts", fileName),
     path.join(__dirname, "..", "fonts", fileName),
@@ -32,12 +38,12 @@ function findFile(fileName: string): string {
  * テンプレートJSONとマッピングデータを読み込み、pdf-lib で PDF Bufferを生成する
  */
 export async function renderPdf(jsonFileName: string, mappedData: Record<string, string>): Promise<Buffer> {
-  // 1. JSON テンプレートの読み込み
+  // 1. JSON テンプレートの読み込み (schemas フォルダから取得)
   const jsonPath = findFile(jsonFileName);
   const templateContent = fs.readFileSync(jsonPath, "utf-8");
   const templateConfig = JSON.parse(templateContent);
 
-  // 2. 背景PDF (form5.pdf等) の読み込み
+  // 2. 背景PDF (form5.pdf等) の読み込み (templates フォルダから取得)
   const pdfFileName = templateConfig.template || `${path.basename(jsonFileName, ".json")}.pdf`;
   const pdfPath = findFile(pdfFileName);
   const pdfBytes = fs.readFileSync(pdfPath);
