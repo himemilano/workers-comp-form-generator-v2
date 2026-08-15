@@ -4,29 +4,27 @@ import { parseKeyValueText } from "../rules/utils/textUtils";
 import { renderPdf } from "./pdfRenderer";
 
 /**
- * 様式第5号 PDF生成メイン処理
- * 病院用・薬局用の最大2枚のPDFを生成します。
+ * 様式第5号 PDF生成（Form 5専用）
  */
 export async function generateForm5PDFs(inputText: string) {
   const rawInput = parseKeyValueText(inputText);
 
-  // Form5 は病院用(hospital) と 薬局用(pharmacy) の2パターンを生成
   const hospitalData = buildForm5Data(rawInput, "hospital");
   const pharmacyData = buildForm5Data(rawInput, "pharmacy");
 
   const pdfResults = [];
 
-  // 1. 病院用PDF生成
+  // 病院用PDF描画
   const hospitalBuffer = await renderPdf("form5.json", hospitalData);
   pdfResults.push({
-    filename: "様式第5号_療養補償給付たる療養の費用請求書_病院用.pdf",
+    filename: "様式第5号_病院用.pdf",
     buffer: hospitalBuffer,
   });
 
-  // 2. 薬局用PDF生成
+  // 薬局用PDF描画
   const pharmacyBuffer = await renderPdf("form5.json", pharmacyData);
   pdfResults.push({
-    filename: "様式第5号_療養補償給付たる療養の費用請求書_薬局用.pdf",
+    filename: "様式第5号_薬局用.pdf",
     buffer: pharmacyBuffer,
   });
 
@@ -34,24 +32,21 @@ export async function generateForm5PDFs(inputText: string) {
 }
 
 /**
- * 様式第6号 PDF生成メイン処理
- * 1回目転院（1枚目）、2回目転院（2枚目）のPDFを生成します。
+ * 様式第6号 PDF生成（Form 6専用）
  */
 export async function generateForm6PDFs(form5InputText: string, form6InputText: string) {
   const form5Raw = parseKeyValueText(form5InputText);
   const form6Raw = parseKeyValueText(form6InputText);
 
-  // Form6 マッパーを呼び出し（1枚目、および2回目転院があれば2枚目を取得）
   const mappedDataList = buildForm6Data(form5Raw, form6Raw);
 
   const pdfResults = [];
   for (let i = 0; i < mappedDataList.length; i++) {
     const mappedData = mappedDataList[i];
     const filename = i === 0
-      ? "様式第6号_指定病院等変更届.pdf"
-      : "様式第6号_指定病院等変更届_2回目.pdf";
+      ? "様式第6号_1回目.pdf"
+      : "様式第6号_2回目.pdf";
 
-    // テンプレート "form6.json" を使ってPDFを描画
     const buffer = await renderPdf("form6.json", mappedData);
     pdfResults.push({ filename, buffer });
   }
