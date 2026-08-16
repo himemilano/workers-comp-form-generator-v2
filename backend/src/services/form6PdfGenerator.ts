@@ -13,14 +13,48 @@ export interface CoordinatesConfig {
   };
 }
 
+interface FieldWrapSetting {
+  maxChars: number;  // 1行の最大文字数
+  lineHeight: number; // 改行時のY軸移動ピッチ（ポイント）
+}
+
 /**
- * 47文字単位でテキストを分割する（災害原因用）
+ * 長文項目ごとの個別折り返し・行間ピッチ設定マップ
+ * ※ form6.json を変更せず、Form6専用で個別制御を行う定義です。
+ *   実際の出力結果を見て数値（maxChars, lineHeight）を微調整してください。
  */
-function chunkText(text: string, chunkSize: number = 47): string[] {
+const FIELD_WRAP_CONFIGS: Record<string, FieldWrapSetting> = {
+  // 1. 災害の原因と発生状況 (仕様: 1行最大52文字)
+  accident_detail: { maxChars: 52, lineHeight: 11 },
+
+  // 2. 転院理由 (1行最大25文字)
+  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 10 },
+
+  // 3. 傷病の部位及び状態 (1行最大25文字)
+  Location_and_condition_of_the_injury: { maxChars: 25, lineHeight: 10 },
+
+  // 4. 本人住所 / 届出人住所 / 氏名 / 会社住所 (長文時の折り返し)
+  "Claimant's_address": { maxChars: 25, lineHeight: 10 },
+  notification_Address: { maxChars: 25, lineHeight: 10 },
+  worker_name: { maxChars: 17, lineHeight: 10 },
+  Company_Address: { maxChars: 28, lineHeight: 10 },
+};
+
+/**
+ * テキストを改行コード（\n）および指定文字数で分割する
+ */
+function splitAndWrapText(text: string, maxChars: number): string[] {
   if (!text) return [];
+  const rawLines = text.split("\n");
   const lines: string[] = [];
-  for (let i = 0; i < text.length; i += chunkSize) {
-    lines.push(text.substring(i, i + chunkSize));
+  for (const rawLine of rawLines) {
+    if (rawLine.length === 0) {
+      lines.push("");
+    } else {
+      for (let i = 0; i < rawLine.length; i += maxChars) {
+        lines.push(rawLine.substring(i, i + maxChars));
+      }
+    }
   }
   return lines;
 }
@@ -36,7 +70,7 @@ export async function generateForm6Pdfs(
   coordsConfig: CoordinatesConfig,
   font: PDFFont
 ): Promise<{ filename: string; pdfBytes: Uint8Array }[]> {
-  // 1. マッピング処理を実行（1枚目、2枚目用の MappedFormData 配列を取得）
+  // 1. マッピング処理を実行
   const mappedDataList: MappedFormData[] = buildForm6Data(form5RawInput, form6RawInput);
   const results: { filename: string; pdfBytes: Uint8Array }[] = [];
 
@@ -56,20 +90,19 @@ export async function generateForm6Pdfs(
       const coord = coordsConfig[key];
       if (!coord) continue;
 
-      // 対象ページ（指定がなければ1ページ目）
       const targetPage = coord.page && coord.page <= pages.length ? pages[coord.page - 1] : page1;
       const fontSize = coord.fontSize || 9;
 
-      // ① 災害の原因及び発生状況（47文字折返し & 行間調整）
-      if (key === "accident_detail") {
-        const lines = chunkText(String(value), 47);
-        // 行間ピッチをフォントサイズ×1.1（約0.5文字分詰めた配置）に指定
-        const customLineHeight = fontSize * 1.1;
+      // ① 個別折り返し制御対象（4カ所＋長文項目）
+      const wrapSetting = FIELD_WRAP_CONFIGS[key];
+      if (wrapSetting) {
+        const lines = splitAndWrapText(String(value), wrapSetting.maxChars);
+        const lineHeight = wrapSetting.lineHeight;
 
         lines.forEach((lineText, i) => {
           targetPage.drawText(lineText, {
             x: coord.x,
-            y: coord.y - i * customLineHeight,
+            y: coord.y - i * lineHeight,
             size: fontSize,
             font,
           });
@@ -77,7 +110,7 @@ export async function generateForm6Pdfs(
         continue;
       }
 
-      // ② 自動折り返し指定のある項目（住所など）
+      // ② 自動折り返し指定のある項目 (coord.maxWidth 指定時)
       if (coord.maxWidth) {
         targetPage.drawText(String(value), {
           x: coord.x,
