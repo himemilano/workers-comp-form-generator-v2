@@ -14,29 +14,31 @@ export interface CoordinatesConfig {
 }
 
 interface FieldWrapSetting {
-  maxChars: number;  // 1行の最大文字数
-  lineHeight: number; // 改行時のY軸移動ピッチ（ポイント）
+  maxChars: number;   // 1行の最大文字数
+  lineHeight: number; // 改行時のY軸移動ピッチ（pt）
 }
 
 /**
  * 長文項目ごとの個別折り返し・行間ピッチ設定マップ
- * ※ form6.json を変更せず、Form6専用で個別制御を行う定義です。
- *   実際の出力結果を見て数値（maxChars, lineHeight）を微調整してください。
  */
 const FIELD_WRAP_CONFIGS: Record<string, FieldWrapSetting> = {
-  // 1. 災害の原因と発生状況 (仕様: 1行最大52文字)
-  accident_detail: { maxChars: 52, lineHeight: 9 },
+  // 1. 災害の原因と発生状況
+  accident_detail: { maxChars: 52, lineHeight: 11 },
 
-  // 2. 転院理由 (1行最大25文字)
-  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 9 },
+  // 2. 転院理由
+  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 10 },
 
-  // 3. 傷病の部位及び状態 (1行最大25文字)
+  // 3. 傷病の部位及び状態
   Location_and_condition_of_the_injury: { maxChars: 25, lineHeight: 10 },
 
-  // 4. 本人住所 / 届出人住所 / 氏名 / 会社住所 (長文時の折り返し)
-  "Claimant's_address": { maxChars: 25, lineHeight: 10 },
-  notification_Address: { maxChars: 25, lineHeight: 10 },
-  worker_name: { maxChars: 17, lineHeight: 10 },
+  // 4. 本人情報（枠が狭いため 17文字 / ピッチ 9pt）
+  worker_name: { maxChars: 17, lineHeight: 9 },
+  "Claimant's_address": { maxChars: 17, lineHeight: 9 },
+
+  // 5. 届出人住所（本人枠より長いため独立設定）
+  notification_Address: { maxChars: 35, lineHeight: 10 },
+
+  // 6. 証明会社住所
   Company_Address: { maxChars: 28, lineHeight: 10 },
 };
 
@@ -61,7 +63,6 @@ function splitAndWrapText(text: string, maxChars: number): string[] {
 
 /**
  * Form6 PDF生成メイン処理
- * 1回目・2回目（転院先複数時）のPDFを確実にループ生成して配列で返却します。
  */
 export async function generateForm6Pdfs(
   form5RawInput: RawInputData,
@@ -90,10 +91,23 @@ export async function generateForm6Pdfs(
       const coord = coordsConfig[key];
       if (!coord) continue;
 
+      // 対象ページ判定（jsonの "page": 2 指定時は 2ページ目に描画）
       const targetPage = coord.page && coord.page <= pages.length ? pages[coord.page - 1] : page1;
       const fontSize = coord.fontSize || 9;
 
-      // ① 個別折り返し制御対象（4カ所＋長文項目）
+      // ① 請求医療機関名 (Claim_Hospital_name): 折り返し・改行なしで1行描画
+      if (key === "Claim_Hospital_name") {
+        const singleLineText = String(value).replace(/\r?\n/g, "");
+        targetPage.drawText(singleLineText, {
+          x: coord.x,
+          y: coord.y,
+          size: fontSize,
+          font,
+        });
+        continue;
+      }
+
+      // ② 個別折り返し制御対象（本人情報 17文字/9pt ピッチ等）
       const wrapSetting = FIELD_WRAP_CONFIGS[key];
       if (wrapSetting) {
         const lines = splitAndWrapText(String(value), wrapSetting.maxChars);
@@ -110,7 +124,7 @@ export async function generateForm6Pdfs(
         continue;
       }
 
-      // ② 自動折り返し指定のある項目 (coord.maxWidth 指定時)
+      // ③ 自動折り返し指定のある項目 (coord.maxWidth 指定時)
       if (coord.maxWidth) {
         targetPage.drawText(String(value), {
           x: coord.x,
@@ -123,7 +137,7 @@ export async function generateForm6Pdfs(
         continue;
       }
 
-      // ③ 通常テキストの描画
+      // ④ 通常テキストの描画（ページ2の項目含む）
       targetPage.drawText(String(value), {
         x: coord.x,
         y: coord.y,
