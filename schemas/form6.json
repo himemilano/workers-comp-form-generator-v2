@@ -65,8 +65,8 @@
         { "id": "Reason_for_after_Hospital", "x": 199, "y": 168, "fontSize": 10 },
         { "id": "pension_Hospital", "x": 199, "y": 84, "fontSize": 10 },
         { "id": "pension_Hospital_Address", "x": 197, "y": 59, "fontSize": 10 },
-        { "id": "pension_Hospital_zip_first", "x": 481, "y": 69, "fontSize": 9 },
-        { "id": "pension_Hospital_zip_last", "x": 529, "y": 69, "fontSize": 9 }
+        { "id": "pension_Hospital_zip_first", "x": 481, "y": 72, "fontSize": 9 },
+        { "id": "pension_Hospital_zip_last", "x": 529, "y": 72, "fontSize": 9 }
       ]
     },
     {
