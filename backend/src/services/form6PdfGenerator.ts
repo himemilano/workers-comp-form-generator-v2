@@ -25,10 +25,10 @@ interface FieldWrapSetting {
  */
 const FIELD_WRAP_CONFIGS: Record<string, FieldWrapSetting> = {
   // 1. 災害の原因と発生状況 (仕様: 1行最大52文字)
-  accident_detail: { maxChars: 52, lineHeight: 11 },
+  accident_detail: { maxChars: 52, lineHeight: 9 },
 
   // 2. 転院理由 (1行最大25文字)
-  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 10 },
+  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 9 },
 
   // 3. 傷病の部位及び状態 (1行最大25文字)
   Location_and_condition_of_the_injury: { maxChars: 25, lineHeight: 10 },
