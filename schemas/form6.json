@@ -35,7 +35,7 @@
         { "id": "injury_day", "x": 533, "y": 580, "fontSize": 9 },
         { "id": "injury_time_am", "x": 469, "y": 525, "fontSize": 10 },
         { "id": "injury_time_pm", "x": 467, "y": 514, "fontSize": 10 },
-        { "id": "disaster_hour", "x": 524, "y": 521, "fontSize": 8 },
+        { "id": "disaster_hour", "x": 520, "y": 521, "fontSize": 8 },
         { "id": "disaster_minute", "x": 536, "y": 521, "fontSize": 8 },
         { "id": "accident_detail", "x": 33, "y": 451, "fontSize": 10 },
         { "id": "Year_of_proof_of_fact", "x": 38, "y": 348, "fontSize": 10 },
@@ -56,8 +56,8 @@
         { "id": "Hospital_zip_last", "x": 528, "y": 255, "fontSize": 9 },
         { "id": "Location_and_condition_of_the_injury", "x": 201, "y": 36, "fontSize": 10 },
         { "id": "Pension_certificate_jurisdiction", "x": 34, "y": 492, "fontSize": 10, "pitch": 16.8 },
-        { "id": "Pension_certificate_type", "x": 74, "y": 492, "fontSize": 10, "pitch": 18.8 },
-        { "id": "Pension_certificate_number", "x": 98, "y": 492, "fontSize": 10, "pitch": 19.8 },
+        { "id": "Pension_certificate_type", "x": 74, "y": 492, "fontSize": 10, "pitch": 19.8 },
+        { "id": "Pension_certificate_number", "x": 98, "y": 492, "fontSize": 10, "pitch": 22.8 },
         { "id": "after_Hospital", "x": 199, "y": 214, "fontSize": 10 },
         { "id": "after_Hospital_Address", "x": 198, "y": 188, "fontSize": 10 },
         { "id": "after_Hospital_zip_first", "x": 481, "y": 203, "fontSize": 9 },
@@ -65,8 +65,8 @@
         { "id": "Reason_for_after_Hospital", "x": 199, "y": 168, "fontSize": 10 },
         { "id": "pension_Hospital", "x": 199, "y": 84, "fontSize": 10 },
         { "id": "pension_Hospital_Address", "x": 197, "y": 59, "fontSize": 10 },
-        { "id": "pension_Hospital_zip_first", "x": 481, "y": 59, "fontSize": 9 },
-        { "id": "pension_Hospital_zip_last", "x": 529, "y": 59, "fontSize": 9 }
+        { "id": "pension_Hospital_zip_first", "x": 481, "y": 89, "fontSize": 9 },
+        { "id": "pension_Hospital_zip_last", "x": 529, "y": 89, "fontSize": 9 }
       ]
     },
     {
