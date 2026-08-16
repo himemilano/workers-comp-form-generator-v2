@@ -46,22 +46,18 @@ export class Form6PdfGenerator {
   private jsonConfig: Form6JsonConfig;
 
   constructor() {
-    // backend/src/services/ から backend/src/config/ へ参照
     const configPath = path.join(__dirname, "../config/form6.json");
     const rawData = fs.readFileSync(configPath, "utf-8");
     this.jsonConfig = JSON.parse(rawData);
   }
 
   public async generatePdf(formDataList: MappedFormData[]): Promise<Buffer> {
-    // backend/src/services/ から backend/src/templates/ へ参照
     const templatePath = path.join(__dirname, "../templates/form6.pdf");
     const templateBytes = fs.readFileSync(templatePath);
     
-    // 全ページ統合用のPDFを作成
     const outputPdf = await PDFDocument.create();
     outputPdf.registerFontkit(fontkit);
 
-    // backend/src/services/ から backend/src/fonts/ へ参照
     const fontPath = path.join(__dirname, "../fonts/NotoSansJP-Regular.ttf");
     const fontBytes = fs.readFileSync(fontPath);
     const customFont = await outputPdf.embedFont(fontBytes);
@@ -78,7 +74,6 @@ export class Form6PdfGenerator {
         this.renderFields(page1, page1Config.fields, formData, customFont);
       }
 
-      // ページ2（裏面）の設定がある場合は描画
       if (pages.length > 1) {
         const page2 = pages[1];
         const page2Config = this.jsonConfig.pages.find((p) => p.page === 2);
@@ -87,7 +82,6 @@ export class Form6PdfGenerator {
         }
       }
 
-      // テンプレートページを最終PDFへコピー統合
       const copiedPages = await outputPdf.copyPages(templatePdf, templatePdf.getPageIndices());
       copiedPages.forEach((p) => outputPdf.addPage(p));
     }
@@ -106,7 +100,6 @@ export class Form6PdfGenerator {
       const key = field.id;
       const rawValue = formData[key];
 
-      // 未入力・空値の場合はスキップ
       if (rawValue === undefined || rawValue === null || rawValue === "") {
         continue;
       }
@@ -129,7 +122,7 @@ export class Form6PdfGenerator {
       // ② OCR指定枠 (Pitchプロパティが存在する場合)
       if (field.pitch && field.pitch > 0) {
         const chars = strValue.split("");
-        chars.forEach((char, index) => {
+        chars.forEach((char: string, index: number) => {
           targetPage.drawText(char, {
             x: field.x + index * field.pitch!,
             y: field.y,
@@ -143,8 +136,14 @@ export class Form6PdfGenerator {
       // ③ 折り返し・行間ピッチ指定のある項目 (FIELD_WRAP_CONFIGS)
       const wrapConfig = FIELD_WRAP_CONFIGS[key];
       if (wrapConfig) {
-        const lines = wrapText(strValue, wrapConfig.maxChars);
-        lines.forEach((line, index) => {
+        const wrappedResult = wrapText(strValue, wrapConfig.maxChars);
+        const lines: string[] = typeof wrappedResult === "string"
+          ? wrappedResult.split("\n")
+          : Array.isArray(wrappedResult)
+            ? wrappedResult
+            : [String(wrappedResult)];
+
+        lines.forEach((line: string, index: number) => {
           targetPage.drawText(line, {
             x: field.x,
             y: field.y - index * wrapConfig.lineHeight,
