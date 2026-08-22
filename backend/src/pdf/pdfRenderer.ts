@@ -118,6 +118,85 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
           }
         }
 
+        // --- 個別ピンポイント制御 (Form 6 専用追加ブロック) ---
+        if (!isForm5) {
+          // ① 労働者氏名 (worker_name) : 15文字折り返し ＆ 行間設定
+          if (field.id === "worker_name") {
+            const maxChars = 15;
+            const lineHeight = 12; // ★ここを変更して行間を微調整
+            const lines: string[] = [];
+            for (let i = 0; i < strVal.length; i += maxChars) {
+              lines.push(strVal.substring(i, i + maxChars));
+            }
+            lines.forEach((lineText, lineIdx) => {
+              page.drawText(lineText, {
+                x: x,
+                y: y - lineIdx * lineHeight,
+                size: fontSize,
+                font: customFont,
+              });
+            });
+            continue;
+          }
+
+          // ② 請求人住所 (Claimant's_address) : 15文字折り返し ＆ 行間設定
+          if (field.id === "Claimant's_address") {
+            const maxChars = 15;
+            const lineHeight = 12; // ★ここを変更して行間を微調整
+            const lines: string[] = [];
+            for (let i = 0; i < strVal.length; i += maxChars) {
+              lines.push(strVal.substring(i, i + maxChars));
+            }
+            lines.forEach((lineText, lineIdx) => {
+              page.drawText(lineText, {
+                x: x,
+                y: y - lineIdx * lineHeight,
+                size: fontSize,
+                font: customFont,
+              });
+            });
+            continue;
+          }
+
+          // ③ 災害の原因と発生状況 (accident_detail) : 行間設定
+          if (field.id === "accident_detail") {
+            const maxChars = field.maxChars || 47;
+            const lineHeight = 19.2; // ★ここを変更して行間を微調整
+            const lines: string[] = [];
+            for (let i = 0; i < strVal.length; i += maxChars) {
+              lines.push(strVal.substring(i, i + maxChars));
+            }
+            lines.forEach((lineText, lineIdx) => {
+              page.drawText(lineText, {
+                x: x,
+                y: y - lineIdx * lineHeight,
+                size: fontSize,
+                font: customFont,
+              });
+            });
+            continue;
+          }
+
+          // ④ 転院・薬局等の理由 (Reason_for_after_Hospital) : 行間設定
+          if (field.id === "Reason_for_after_Hospital") {
+            const maxChars = field.maxChars || 30;
+            const lineHeight = 14; // ★ここを変更して行間を微調整
+            const lines: string[] = [];
+            for (let i = 0; i < strVal.length; i += maxChars) {
+              lines.push(strVal.substring(i, i + maxChars));
+            }
+            lines.forEach((lineText, lineIdx) => {
+              page.drawText(lineText, {
+                x: x,
+                y: y - lineIdx * lineHeight,
+                size: fontSize,
+                font: customFont,
+              });
+            });
+            continue;
+          }
+        }
+
         // --- 汎用自動縮小（Form 6等で autoShrink 指定がある場合） ---
         if (field.autoShrink && field.maxLen && strVal.length > field.maxLen) {
           fontSize = Math.max(8, fontSize * (field.maxLen / strVal.length));
