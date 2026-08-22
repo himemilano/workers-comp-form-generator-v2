@@ -1,4 +1,4 @@
-import { PDFDocument, PDFFont } from "pdf-lib";
+import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
@@ -28,6 +28,17 @@ export interface PdfTemplateConfig {
 }
 
 /**
+ * プロジェクトルート（schemas や templates が存在する最上位階層）を取得する関数
+ */
+function getProjectRoot(): string {
+  const cwd = process.cwd();
+  if (cwd.endsWith("backend") || cwd.endsWith("backend/")) {
+    return path.resolve(cwd, "..");
+  }
+  return cwd;
+}
+
+/**
  * PDFフォームにデータを描画してバイナリを返すメイン関数
  */
 export async function renderPdf(
@@ -35,18 +46,28 @@ export async function renderPdf(
   mappedData: Record<string, any>,
   jsonFileName: string = ""
 ): Promise<Uint8Array> {
-  // テンプレートPDFの読み込み
+  const projectRoot = getProjectRoot();
+
+  // テンプレートPDFのパス解決（プロジェクトルート基準）
   const pdfPath = path.isAbsolute(templateConfig.pdfTemplate)
     ? templateConfig.pdfTemplate
-    : path.join(process.cwd(), templateConfig.pdfTemplate);
+    : path.join(projectRoot, templateConfig.pdfTemplate);
+
+  if (!fs.existsSync(pdfPath)) {
+    throw new Error(`[PDF Template Error]: テンプレートPDFが見つかりません: ${pdfPath}`);
+  }
   const pdfBytes = fs.readFileSync(pdfPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
 
-  // フォントの登録
+  // フォントのパス解決（プロジェクトルート基準）
   pdfDoc.registerFontkit(fontkit);
   const fontPath = path.isAbsolute(templateConfig.fontPath)
     ? templateConfig.fontPath
-    : path.join(process.cwd(), templateConfig.fontPath);
+    : path.join(projectRoot, templateConfig.fontPath);
+
+  if (!fs.existsSync(fontPath)) {
+    throw new Error(`[Font Error]: フォントファイルが見つかりません: ${fontPath}`);
+  }
   const fontBytes = fs.readFileSync(fontPath);
   const customFont = await pdfDoc.embedFont(fontBytes);
 
