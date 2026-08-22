@@ -33,8 +33,8 @@ interface FieldWrapSetting {
 
 // 項目ごとの折り返し・行間ピッチ設定
 const FIELD_WRAP_CONFIGS: Record<string, FieldWrapSetting> = {
-  accident_detail: { maxChars: 52, lineHeight: 7 },
-  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 7 },
+  accident_detail: { maxChars: 52, lineHeight: 8 },
+  Reason_for_after_Hospital: { maxChars: 25, lineHeight: 8 },
   worker_name: { maxChars: 17, lineHeight: 9 },
   "Claimant's_address": { maxChars: 17, lineHeight: 9 },
   Location_and_condition_of_the_injury: { maxChars: 25, lineHeight: 8 },
