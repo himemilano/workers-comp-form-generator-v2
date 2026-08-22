@@ -1,124 +1,154 @@
-import { PDFDocument } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
+import { PDFDocument } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
 
-export interface PdfFieldConfig {
-  id: string;
-  x: number;
-  y: number;
-  fontSize?: number;
-  pitch?: number;
-  maxLen?: number;
-  maxChars?: number;
-  lineHeight?: number;
-  autoShrink?: boolean;
-}
+/**
+ * templates (PDF), schemas (JSON), backend/src/fonts (フォント) からファイルを探索する関数
+ */
+function findFile(fileName: string): string {
+  const candidatePaths = [
+    // 1. templates フォルダ内の探索 (背景PDFの置き場)
+    path.join(process.cwd(), "templates", fileName),
+    path.join(process.cwd(), "..", "templates", fileName),
+    path.join(__dirname, "..", "..", "..", "templates", fileName),
+    path.join(__dirname, "..", "..", "templates", fileName),
 
-export interface PageConfig {
-  page: number;
-  fields: PdfFieldConfig[];
-}
+    // 2. schemas フォルダ内の探索 (JSON設定の置き場)
+    path.join(process.cwd(), "schemas", fileName),
+    path.join(process.cwd(), "..", "schemas", fileName),
+    path.join(__dirname, "..", "..", "..", "schemas", fileName),
+    path.join(__dirname, "..", "..", "schemas", fileName),
 
-export interface PdfTemplateConfig {
-  form: string;
-  pdfTemplate: string;
-  fontPath: string;
-  pages: PageConfig[];
+    // 3. backend/src/fonts フォルダ内の探索 (フォントの置き場)
+    path.join(process.cwd(), "src", "fonts", fileName),
+    path.join(process.cwd(), "backend", "src", "fonts", fileName),
+    path.join(__dirname, "..", "fonts", fileName),
+    path.join(__dirname, "..", "..", "src", "fonts", fileName),
+  ];
+
+  const foundPath = candidatePaths.find((p) => fs.existsSync(p));
+  if (!foundPath) {
+    throw new Error(`ファイル [${fileName}] が見つかりません。探索パス: ${candidatePaths.join(" | ")}`);
+  }
+  return foundPath;
 }
 
 /**
- * プロジェクトルート（schemas や templates が存在する最上位階層）を取得する関数
+ * テンプレートJSONとマッピングデータを読み込み、pdf-lib で PDF Bufferを生成する
  */
-function getProjectRoot(): string {
-  const cwd = process.cwd();
-  if (cwd.endsWith("backend") || cwd.endsWith("backend/")) {
-    return path.resolve(cwd, "..");
-  }
-  return cwd;
-}
+export async function renderPdf(jsonFileName: string, mappedData: Record<string, any>): Promise<Buffer> {
+  // 1. JSON テンプレートの読み込み
+  const jsonPath = findFile(jsonFileName);
+  const templateContent = fs.readFileSync(jsonPath, "utf-8");
+  const templateConfig = JSON.parse(templateContent);
 
-/**
- * PDFフォームにデータを描画してバイナリを返すメイン関数
- */
-export async function renderPdf(
-  templateConfig: PdfTemplateConfig,
-  mappedData: Record<string, any>,
-  jsonFileName: string = ""
-): Promise<Uint8Array> {
-  const projectRoot = getProjectRoot();
-
-  // テンプレートPDFのパス解決（プロジェクトルート基準）
-  const pdfPath = path.isAbsolute(templateConfig.pdfTemplate)
-    ? templateConfig.pdfTemplate
-    : path.join(projectRoot, templateConfig.pdfTemplate);
-
-  if (!fs.existsSync(pdfPath)) {
-    throw new Error(`[PDF Template Error]: テンプレートPDFが見つかりません: ${pdfPath}`);
-  }
+  // 2. 背景PDF (form5.pdf等) の読み込み
+  const pdfFileName = templateConfig.template || `${path.basename(jsonFileName, ".json")}.pdf`;
+  const pdfPath = findFile(pdfFileName);
   const pdfBytes = fs.readFileSync(pdfPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
 
-  // フォントのパス解決（プロジェクトルート基準）
+  // 3. 日本語フォント (IPAexGothic.ttf) の登録 & 埋め込み
   pdfDoc.registerFontkit(fontkit);
-  const fontPath = path.isAbsolute(templateConfig.fontPath)
-    ? templateConfig.fontPath
-    : path.join(projectRoot, templateConfig.fontPath);
-
-  if (!fs.existsSync(fontPath)) {
-    throw new Error(`[Font Error]: フォントファイルが見つかりません: ${fontPath}`);
-  }
+  const fontPath = findFile("IPAexGothic.ttf");
   const fontBytes = fs.readFileSync(fontPath);
-  const customFont = await pdfDoc.embedFont(fontBytes);
+  const customFont = await pdfDoc.embedFont(fontBytes, { subset: true });
 
   const pages = pdfDoc.getPages();
 
-  // ★ Form 5 かどうかの判定ガード（Form 5 の挙動を100%保持するため）
+  // Form 5 かどうかの判定（Form 5 固有の制御が Form 6 に適用されるのを防ぐ）
   const isForm5 = jsonFileName.includes("form5") || templateConfig.form === "5";
 
-  for (const pageConfig of templateConfig.pages) {
-    const pageIndex = pageConfig.page - 1;
-    if (pageIndex < 0 || pageIndex >= pages.length) continue;
+  // 4. 各ページのフィールド描画
+  if (Array.isArray(templateConfig.pages)) {
+    for (const pageConfig of templateConfig.pages) {
+      const pageIndex = pageConfig.page - 1;
+      if (pageIndex < 0 || pageIndex >= pages.length) continue;
+      const page = pages[pageIndex];
 
-    const page = pages[pageIndex];
+      if (!Array.isArray(pageConfig.fields)) continue;
 
-    for (const field of pageConfig.fields) {
-      let val = mappedData[field.id];
-      if (val === undefined || val === null || val === "") continue;
+      for (const field of pageConfig.fields) {
+        let val = mappedData[field.id];
+        if (val === undefined || val === null || val === "") continue;
 
-      let strVal = String(val);
-      let fontSize = field.fontSize || 10;
-      const x = field.x;
-      const y = field.y;
+        let strVal = String(val);
+        let fontSize = field.fontSize || 10;
+        const x = field.x;
+        const y = field.y;
 
-      // --- ① Form 5 専用の既存ピンポイント制御（Form 5 実行時のみ通過） ---
-      if (isForm5) {
-        // 1. 事業場名称・代表者名: 30文字超で自動縮小
-        if (
-          field.id === "Company_name_and_representative's_name" ||
-          field.id === "Company_Name"
-        ) {
-          if (strVal.length > 30) {
-            fontSize = Math.max(8, fontSize * (30 / strVal.length));
+        // --- 個別ピンポイント制御 (Form 5 専用) ---
+        if (isForm5) {
+          // ① 事業場の名称及び使用者職氏名: 30文字を超えたらフォント縮小 (下限8pt)
+          if (
+            field.id === "Company_name_and_representative's_name" ||
+            field.id === "Company_Name"
+          ) {
+            if (strVal.length > 30) {
+              fontSize = Math.max(8, fontSize * (30 / strVal.length));
+            }
+          }
+
+          // ② 請求人住所: 25文字を超えたらフォント縮小 (下限8pt)
+          if (field.id === "Claimant's_address") {
+            if (strVal.length > 25) {
+              fontSize = Math.max(8, fontSize * (25 / strVal.length));
+            }
+          }
+
+          // ③ 請求先病院名: 末尾の病院・診療所・薬局・クリニックを削除、8文字で折り返し、詰めた行間(11pt)で印字
+          if (field.id === "Claim_Hospital_name") {
+            strVal = strVal.replace(/(病院|診療所|薬局|クリニック)$/, "");
+            const maxChars = 8;
+            const lineHeight = 11; // 1行目と2行目の間隔を自然な位置（11pt）に設定
+            const lines: string[] = [];
+            for (let i = 0; i < strVal.length; i += maxChars) {
+              lines.push(strVal.substring(i, i + maxChars));
+            }
+            lines.forEach((lineText, lineIdx) => {
+              page.drawText(lineText, {
+                x: x,
+                y: y - lineIdx * lineHeight,
+                size: fontSize,
+                font: customFont,
+              });
+            });
+            continue; // 描画完了のため次のフィールドへ
           }
         }
 
-        // 2. 請求人住所: 25文字超で自動縮小
-        if (field.id === "Claimant's_address") {
-          if (strVal.length > 25) {
-            fontSize = Math.max(8, fontSize * (25 / strVal.length));
-          }
+        // --- 汎用自動縮小（Form 6等で autoShrink 指定がある場合） ---
+        if (field.autoShrink && field.maxLen && strVal.length > field.maxLen) {
+          fontSize = Math.max(8, fontSize * (field.maxLen / strVal.length));
         }
 
-        // 3. 請求先病院名: 8文字折り返し & 行間11pt（Form 5 のみ適用）
-        if (field.id === "Claim_Hospital_name") {
-          strVal = strVal.replace(/(病院|診療所|薬局|クリニック)$/, "");
-          const maxChars = 8;
-          const lineHeight = 11;
-          const lines: string[] = [];
-          for (let i = 0; i < strVal.length; i += maxChars) {
-            lines.push(strVal.substring(i, i + maxChars));
+        // --- 通常描画ロジック ---
+
+        // ピッチ指定（マス目印字）がある場合
+        if (field.pitch) {
+          for (let i = 0; i < strVal.length; i++) {
+            page.drawText(strVal[i], {
+              x: x + i * field.pitch,
+              y: y,
+              size: fontSize,
+              font: customFont,
+            });
           }
+        }
+        // 複数行・最大文字数指定（改行文字が含まれるか、JSONでmaxCharsが指定されている場合）
+        else if (strVal.includes("\n") || (field.maxChars && field.maxChars > 0)) {
+          const lineHeight = field.lineHeight ? Number(field.lineHeight) : fontSize * 1.5;
+          let lines: string[] = [];
+
+          if (strVal.includes("\n")) {
+            lines = strVal.split("\n");
+          } else if (field.maxChars) {
+            for (let i = 0; i < strVal.length; i += field.maxChars) {
+              lines.push(strVal.substring(i, i + field.maxChars));
+            }
+          }
+
           lines.forEach((lineText, lineIdx) => {
             page.drawText(lineText, {
               x: x,
@@ -127,62 +157,20 @@ export async function renderPdf(
               font: customFont,
             });
           });
-          continue; // Form 5 の病院名描画完了
         }
-      }
-
-      // --- ② 汎用自動縮小（Form 6 または Form 5 の共通設定） ---
-      if (field.autoShrink && field.maxLen && strVal.length > field.maxLen) {
-        fontSize = Math.max(8, fontSize * (field.maxLen / strVal.length));
-      }
-
-      // --- ③ 描画処理 ---
-
-      // A. ピッチ指定（マス目印字）
-      if (field.pitch) {
-        for (let i = 0; i < strVal.length; i++) {
-          page.drawText(strVal[i], {
-            x: x + i * field.pitch,
+        // 通常の1行テキスト描画
+        else {
+          page.drawText(strVal, {
+            x: x,
             y: y,
             size: fontSize,
             font: customFont,
           });
         }
       }
-      // B. 複数行描画（\n が含まれる、または JSON で maxChars が指定されている場合）
-      else if (strVal.includes("\n") || (field.maxChars && field.maxChars > 0)) {
-        // JSON側の lineHeight を優先（無ければ fontSize * 1.2）
-        const lineHeight = field.lineHeight ? Number(field.lineHeight) : fontSize * 1.2;
-        let lines: string[] = [];
-
-        if (strVal.includes("\n")) {
-          lines = strVal.split("\n");
-        } else if (field.maxChars) {
-          for (let i = 0; i < strVal.length; i += field.maxChars) {
-            lines.push(strVal.substring(i, i + field.maxChars));
-          }
-        }
-
-        lines.forEach((lineText, lineIdx) => {
-          page.drawText(lineText, {
-            x: x,
-            y: y - lineIdx * lineHeight,
-            size: fontSize,
-            font: customFont,
-          });
-        });
-      }
-      // C. 通常の1行テキスト描画（Form 6 の Claim_Hospital_name はこちらを通る）
-      else {
-        page.drawText(strVal, {
-          x: x,
-          y: y,
-          size: fontSize,
-          font: customFont,
-        });
-      }
     }
   }
 
-  return await pdfDoc.save();
+  const outputPdfBytes = await pdfDoc.save();
+  return Buffer.from(outputPdfBytes);
 }
