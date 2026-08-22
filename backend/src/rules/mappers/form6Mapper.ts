@@ -5,21 +5,14 @@ import {
   parsePhone,
   parseZip,
   parseFlexibleDate,
-  toHalfWidth,
-  wrapText
+  toHalfWidth
 } from "../utils/textUtils";
 
-/**
- * 病院名のクレンジング
- */
 function cleanHospitalName(name: string): string {
   if (!name) return "";
   return name.trim().replace(/(病院|診療所|クリニック|薬局)/g, "").trim();
 }
 
-/**
- * 生年月日の元号変換（5:昭和, 7:平成, 9:令和）
- */
 function formatBirthYear(eraCode: string, yearNum: string): string {
   if (!yearNum) return "";
   let eraStr = "";
@@ -30,15 +23,60 @@ function formatBirthYear(eraCode: string, yearNum: string): string {
   return eraStr ? `${eraStr}${yearNum}` : yearNum;
 }
 
-/**
- * 令和の付加
- */
 function formatReiwaYear(yearNum: string): string {
   if (!yearNum) return "";
   if (yearNum.includes("令和") || yearNum.includes("昭和") || yearNum.includes("平成")) {
     return yearNum;
   }
   return `令和${yearNum}`;
+}
+
+/**
+ * 加入年月日を Year_of_joining(年/元号含), Joining_Month(月), Joining_date(日) に分解する
+ */
+function parseJoiningDate(dateStr: string): { year: string; month: string; day: string } {
+  if (!dateStr) return { year: "", month: "", day: "" };
+
+  // 例: "平成20年12月25日", "令和5年4月1日"
+  const kanjiMatch = dateStr.match(/^(明治|大正|昭和|平成|令和)?\s*(\d{1,2}|元)年\s*(\d{1,2})月\s*(\d{1,2})日/);
+  if (kanjiMatch) {
+    const era = kanjiMatch[1] || "";
+    const y = kanjiMatch[2];
+    const m = kanjiMatch[3];
+    const d = kanjiMatch[4];
+    return {
+      year: era ? `${era}${y}` : y,
+      month: m,
+      day: d
+    };
+  }
+
+  // 例: "2020-12-25" や "2020/12/25"
+  const slashMatch = dateStr.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  if (slashMatch) {
+    const fullYear = parseInt(slashMatch[1], 10);
+    let eraYear = String(fullYear);
+    if (fullYear >= 2019) eraYear = `令和${fullYear - 2018}`;
+    else if (fullYear >= 1989) eraYear = `平成${fullYear - 1988}`;
+    else if (fullYear >= 1926) eraYear = `昭和${fullYear - 1925}`;
+    return {
+      year: eraYear,
+      month: String(parseInt(slashMatch[2], 10)),
+      day: String(parseInt(slashMatch[3], 10))
+    };
+  }
+
+  // 数字のみなどの汎用パース
+  const flex = parseFlexibleDate(dateStr);
+  if (flex.year || flex.month || flex.day) {
+    return {
+      year: flex.year ? `令和${flex.year}` : "",
+      month: flex.month,
+      day: flex.day
+    };
+  }
+
+  return { year: dateStr, month: "", day: "" };
 }
 
 export function buildForm6Data(
@@ -59,7 +97,7 @@ export function buildForm6Data(
   const laborInsLast  = full14Digits.slice(2, 14);
 
   // 特別加入用労働保険番号
-  const rawSpecialLaborIns = v("労働保険番号(特別加入)") || v("特別加入労働保険番号");
+  const rawSpecialLaborIns = v(["労働保険番号(特別加入)", "特別加入労働保険番号", "Special_Insurance_num"]);
   const fullSpecialDigits = padGridValue(rawSpecialLaborIns, 14);
 
   // 2. 年金証書番号
@@ -92,8 +130,9 @@ export function buildForm6Data(
   const formattedInjuryYear = formatReiwaYear(injuryYmd.year);
   const formattedProofYear = formatReiwaYear(proofDateYmd.year);
 
-  // 加入年月日 (入力文章をそのまま代入)
-  const joiningYearStr = v(["特別加入日(例: 令和5年4月1日)", "特別加入日", "Year_of_joining", "加入年月日"]) || "";
+  // 特別加入日（加入年月日）の分解
+  const rawJoiningDate = v(["特別加入日(例: 令和5年4月1日)", "特別加入日", "加入年月日", "Year_of_joining"]) || "";
+  const joiningDateParsed = parseJoiningDate(rawJoiningDate);
 
   // 5. 本人情報
   const workerName  = v("氏名(漢字)") || v("氏名") || v("本人氏名");
@@ -130,13 +169,16 @@ export function buildForm6Data(
   const h3Zip     = parseZip(v("2回目の病院の郵便番号"));
   const h3Reason  = v("2回目の転院理由");
 
-  // 8. 裏面項目（page2）
-  const hasOtherEmployment = v("その他就業先の有無") || v("複数就業有無");
-  const otherEmpExist = (hasOtherEmployment === "有" || hasOtherEmployment === "1") ? "○" : "";
-  const otherEmpNone  = (hasOtherEmployment === "無" || hasOtherEmployment === "0") ? "○" : "";
+  // 8. 裏面（Page 2）用項目
+  const specialOrgName = v([
+    "労働保険事務組合又は特別加入団体の名称",
+    "特別加入団体名",
+    "Name_of_Special_Member_Organization",
+    "ame_of_Special_Member_Organization"
+  ]);
 
   const commonData: MappedFormData = {
-    // 表面項目
+    // 表面（Page 1）
     "Area_of_the_Labor_Standards_Inspection_Office": v("管轄労働基準監督署名") || v("労働基準監督署長殿"),
     "Year_of_entry": formattedFillYear,
     "Month_of_entry": fillDateYmd.month,
@@ -170,9 +212,8 @@ export function buildForm6Data(
     "disaster_hour": disasterHour,
     "disaster_minute": disasterMinute,
 
-    // 余計な記号を排除して単純に改行区切りでマッピング
-    "accident_detail": wrapText(v("災害の原因と発生状況(詳しく)") || v("災害の原因及び発生状況"), 52),
-    "Location_and_condition_of_the_injury": wrapText(v("傷病の部位及び状態") || v("傷病名"), 25),
+    "accident_detail": v("災害の原因と発生状況(詳しく)") || v("災害の原因及び発生状況"),
+    "Location_and_condition_of_the_injury": v("傷病の部位及び状態") || v("傷病名"),
 
     "Year_of_proof_of_fact": formattedProofYear,
     "Month_of_Proof_of_Fact": proofDateYmd.month,
@@ -183,20 +224,22 @@ export function buildForm6Data(
     "Company_tel_area": compPhone.area,
     "Company_tel_city": compPhone.city,
     "Company_tel_num": compPhone.num,
-    "Company_Address": wrapText(v("証明会社住所"), 28),
+    "Company_Address": v("証明会社住所"),
     "Representative's_name": v("代表者職氏名"),
 
     "Pension_certificate_jurisdiction": pensionJurisdiction,
     "Pension_certificate_type": pensionType,
     "Pension_certificate_number": pensionNumber,
 
-    // 裏面項目（page2）
-    "other_employment_yes": otherEmpExist,
-    "other_employment_no": otherEmpNone,
-    "other_employment_count": v("有の場合のその数"),
-    "special_joining_group_name": v("労働保険事務組合又は特別加入団体の名称"),
-    "special_joining_labor_ins_no": fullSpecialDigits,
-    "Year_of_joining": joiningYearStr
+    // 裏面（Page 2）指定キー名
+    "Multiple": v(["その他就業先の有無", "複数就業有無", "Multiple"]),
+    "Number_of_workplaces": v(["有の場合のその数", "Number_of_workplaces", "就業先数"]),
+    "Name_of_Special_Member_Organization": specialOrgName,
+    "ame_of_Special_Member_Organization": specialOrgName, // タイポ対策互換
+    "Special_Insurance_num": fullSpecialDigits,
+    "Year_of_joining": joiningDateParsed.year,
+    "Joining_Month": joiningDateParsed.month,
+    "Joining_date": joiningDateParsed.day
   };
 
   const results: MappedFormData[] = [];
@@ -214,7 +257,7 @@ export function buildForm6Data(
     "after_Hospital_Address": h2Address,
     "after_Hospital_zip_first": h2Zip.first,
     "after_Hospital_zip_last": h2Zip.last,
-    "Reason_for_after_Hospital": wrapText(h2Reason, 25)
+    "Reason_for_after_Hospital": h2Reason
   });
 
   // 2枚目（転院2回目がある場合）
@@ -231,7 +274,7 @@ export function buildForm6Data(
       "after_Hospital_Address": h3Address,
       "after_Hospital_zip_first": h3Zip.first,
       "after_Hospital_zip_last": h3Zip.last,
-      "Reason_for_after_Hospital": wrapText(h3Reason, 25)
+      "Reason_for_after_Hospital": h3Reason
     });
   }
 
