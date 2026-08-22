@@ -79,7 +79,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "after_Hospital_zip_first": { pos: { x: 505, y: 225 }, fontSize: 8 },
   "after_Hospital_zip_last": { pos: { x: 530, y: 225 }, fontSize: 8 },
 
-  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 17, lineHeight: 10 }
+  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 17, lineHeight: 11 }
 };
 
 // 裏面 (Page 2) 座標マップ
