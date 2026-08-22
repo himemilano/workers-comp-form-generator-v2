@@ -51,7 +51,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "disaster_hour": { pos: { x: 250, y: 535 }, fontSize: 10 },
   "disaster_minute": { pos: { x: 278, y: 535 }, fontSize: 10 },
 
-  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 32, lineHeight: 11 },
+  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 28, lineHeight: 11 },
   "Location_and_condition_of_the_injury": { pos: { x: 125, y: 118 }, fontSize: 8, maxChars: 25, lineHeight: 10 },
 
   "Year_of_proof_of_fact": { pos: { x: 120, y: 418 }, fontSize: 10 },
@@ -79,18 +79,19 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "after_Hospital_zip_first": { pos: { x: 505, y: 225 }, fontSize: 8 },
   "after_Hospital_zip_last": { pos: { x: 530, y: 225 }, fontSize: 8 },
 
-  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 17, lineHeight: 11 }
+  // 1行最大35文字で自然に折り返し、行間11を適用
+  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 35, lineHeight: 11 }
 };
 
-// 裏面 (Page 2) 座標マップ
+// 裏面 (Page 2) 座標マップ（form5の実績通り）
 const PAGE2_FIELD_POSITIONS: Record<string, FieldConfig> = {
-  "Multiple": { pos: { x: 39, y: 766 }, fontSize: 10 },
-  "Number_of_workplaces": { pos: { x: 147, y: 742 }, fontSize: 10 },
-  "Name_of_Special_Member_Organization": { pos: { x: 383, y: 731 }, fontSize: 10 },
-  "Special_Insurance_num": { pos: { x: 31, y: 696 }, fontSize: 10 },
-  "Year_of_joining": { pos: { x: 358, y: 707 }, fontSize: 10 },
-  "Joining_Month": { pos: { x: 451, y: 707 }, fontSize: 10 },
-  "Joining_date": { pos: { x: 511, y: 707 }, fontSize: 10 }
+  "Multiple": { pos: { x: 210, y: 720 }, fontSize: 10 },
+  "Number_of_workplaces": { pos: { x: 480, y: 720 }, fontSize: 10 },
+  "Name_of_Special_Member_Organization": { pos: { x: 280, y: 662 }, fontSize: 9 },
+  "Special_Insurance_num": { pos: { x: 210, y: 632 }, fontSize: 9 },
+  "Year_of_joining": { pos: { x: 425, y: 632 }, fontSize: 9 },
+  "Joining_Month": { pos: { x: 490, y: 632 }, fontSize: 9 },
+  "Joining_date": { pos: { x: 525, y: 632 }, fontSize: 9 }
 };
 
 export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promise<Buffer> {
@@ -108,12 +109,14 @@ export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promis
   const page1 = pages[0];
   const page2 = pages.length > 1 ? pages[1] : null;
 
-  const data = mappedDataList[0];
+  const data = mappedDataList[0] || {};
 
-  // 1. 表面（Page 1）
-  drawFieldsToPage(page1, data, PAGE1_FIELD_POSITIONS, customFont);
+  // 1. 表面 (Page 1) 描画
+  if (page1) {
+    drawFieldsToPage(page1, data, PAGE1_FIELD_POSITIONS, customFont);
+  }
 
-  // 2. 裏面（Page 2）
+  // 2. 裏面 (Page 2) 描画 (form5と同一の処理)
   if (page2) {
     drawFieldsToPage(page2, data, PAGE2_FIELD_POSITIONS, customFont);
   }
@@ -122,20 +125,13 @@ export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promis
   return Buffer.from(pdfBytes);
 }
 
-/**
- * テキストを指定文字数で正確にスライスして改行配列を作る
- */
 function splitTextByMaxChars(text: string, maxChars: number): string[] {
   if (!text) return [];
-  const cleanText = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const rawLines = cleanText.split("\n");
+  const str = String(text);
   const result: string[] = [];
 
-  for (const rawLine of rawLines) {
-    if (rawLine.length === 0) continue;
-    for (let i = 0; i < rawLine.length; i += maxChars) {
-      result.push(rawLine.slice(i, i + maxChars));
-    }
+  for (let i = 0; i < str.length; i += maxChars) {
+    result.push(str.slice(i, i + maxChars));
   }
   return result;
 }
@@ -148,7 +144,8 @@ function drawFieldsToPage(
 ) {
   for (const [key, config] of Object.entries(fieldMap)) {
     const rawVal = data[key];
-    if (!rawVal) continue;
+
+    if (rawVal === undefined || rawVal === null || rawVal === "") continue;
 
     const fontSize = config.fontSize || 9;
     const lineHeight = config.lineHeight || fontSize + 2;
@@ -156,7 +153,7 @@ function drawFieldsToPage(
 
     let lines: string[] = [];
 
-    if (maxChars) {
+    if (maxChars && maxChars > 0) {
       lines = splitTextByMaxChars(String(rawVal), maxChars);
     } else {
       lines = [String(rawVal)];
