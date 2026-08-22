@@ -51,7 +51,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "disaster_hour": { pos: { x: 250, y: 535 }, fontSize: 10 },
   "disaster_minute": { pos: { x: 278, y: 535 }, fontSize: 10 },
 
-  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 28, lineHeight: 11 },
+  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 32, lineHeight: 11 },
   "Location_and_condition_of_the_injury": { pos: { x: 125, y: 118 }, fontSize: 8, maxChars: 25, lineHeight: 10 },
 
   "Year_of_proof_of_fact": { pos: { x: 120, y: 418 }, fontSize: 10 },
@@ -79,7 +79,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "after_Hospital_zip_first": { pos: { x: 505, y: 225 }, fontSize: 8 },
   "after_Hospital_zip_last": { pos: { x: 530, y: 225 }, fontSize: 8 },
 
-  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 13, lineHeight: 10 }
+  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 17, lineHeight: 10 }
 };
 
 // 裏面 (Page 2) 座標マップ
