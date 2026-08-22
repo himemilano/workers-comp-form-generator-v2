@@ -1,166 +1,180 @@
-import { PDFDocument, PDFFont } from "pdf-lib";
+import { PDFDocument, PDFFont, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import fs from "fs";
 import path from "path";
 import { MappedFormData } from "../types/form";
-import { wrapText } from "../rules/utils/textUtils";
 
-interface FieldConfig {
-  id: string;
+interface Point {
   x: number;
   y: number;
+}
+
+interface FieldConfig {
+  pos: Point;
   fontSize?: number;
-  pitch?: number;
+  maxChars?: number;
+  lineHeight?: number;
 }
 
-interface PageConfig {
-  page: number;
-  name: string;
-  fields: FieldConfig[];
-}
+// 表面 (Page 1) 座標マップ
+const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
+  Area_of_the_Labor_Standards_Inspection_Office: { pos: { x: 415, y: 780 }, fontSize: 10 },
+  Year_of_entry: { pos: { x: 382, y: 741 }, fontSize: 10 },
+  Month_of_entry: { pos: { x: 432, y: 741 }, fontSize: 10 },
+  Date_of_entry: { pos: { x: 472, y: 741 }, fontSize: 10 },
+  zip_first: { pos: { x: 380, y: 727 }, fontSize: 9 },
+  zip_last: { pos: { x: 415, y: 727 }, fontSize: 9 },
+  claimant_tel_area: { pos: { x: 480, y: 727 }, fontSize: 9 },
+  claimant_tel_city: { pos: { x: 512, y: 727 }, fontSize: 9 },
+  claimant_tel_num: { pos: { x: 540, y: 727 }, fontSize: 9 },
+  notification_Address: { pos: { x: 370, y: 708 }, fontSize: 8, maxChars: 20, lineHeight: 10 },
+  notification_Name: { pos: { x: 390, y: 678 }, fontSize: 10 },
 
-interface Form6JsonConfig {
-  form: string;
-  name: string;
-  template: string;
-  pages: PageConfig[];
-}
+  Labor_insurance_No._first: { pos: { x: 125, y: 622 }, fontSize: 10 },
+  Labor_insurance_No._last: { pos: { x: 175, y: 622 }, fontSize: 10 },
+  worker_name: { pos: { x: 320, y: 622 }, fontSize: 10, maxChars: 15, lineHeight: 12 },
+  male: { pos: { x: 442, y: 630 }, fontSize: 10 },
+  female: { pos: { x: 442, y: 615 }, fontSize: 10 },
+  
+  Year_of_birth: { pos: { x: 120, y: 575 }, fontSize: 10 },
+  Birth_month: { pos: { x: 175, y: 575 }, fontSize: 10 },
+  Birth_day: { pos: { x: 205, y: 575 }, fontSize: 10 },
+  age: { pos: { x: 238, y: 575 }, fontSize: 10 },
+  "Claimant's_address": { pos: { x: 320, y: 585 }, fontSize: 8, maxChars: 15, lineHeight: 12 },
+  Job_type: { pos: { x: 505, y: 575 }, fontSize: 9 },
 
-interface FieldWrapSetting {
-  maxChars: number;
-  lineHeight: number;
-}
+  injury_year: { pos: { x: 120, y: 535 }, fontSize: 10 },
+  injury_month: { pos: { x: 175, y: 535 }, fontSize: 10 },
+  injury_day: { pos: { x: 205, y: 535 }, fontSize: 10 },
+  injury_time_am: { pos: { x: 235, y: 542 }, fontSize: 8 },
+  injury_time_pm: { pos: { x: 235, y: 528 }, fontSize: 8 },
+  disaster_hour: { pos: { x: 250, y: 535 }, fontSize: 10 },
+  disaster_minute: { pos: { x: 278, y: 535 }, fontSize: 10 },
 
-// 項目ごとの折り返し・行間ピッチ設定（数値変更で後から行間微調整が可能）
-const FIELD_WRAP_CONFIGS: Record<string, FieldWrapSetting> = {
-  accident_detail: { maxChars: 52, lineHeight: 22 },            // 災害の原因と発生状況
-  Reason_for_after_Hospital: { maxChars: 35, lineHeight: 22 },  // 転院理由
-  worker_name: { maxChars: 16, lineHeight: 12 },               // ★15文字折り返し・行間調整用
-  "Claimant's_address": { maxChars: 16, lineHeight: 12 },      // ★15文字折り返し・行間調整用
-  Location_and_condition_of_the_injury: { maxChars: 25, lineHeight: 8 },
-  Company_Address: { maxChars: 28, lineHeight: 8 },
-  notification_Address: { maxChars: 28, lineHeight: 8 }
+  // ★全角28文字で綺麗に枠内折り返し
+  accident_detail: { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 28, lineHeight: 11 },
+  Location_and_condition_of_the_injury: { pos: { x: 125, y: 118 }, fontSize: 8, maxChars: 25, lineHeight: 10 },
+
+  Year_of_proof_of_fact: { pos: { x: 120, y: 418 }, fontSize: 10 },
+  Month_of_Proof_of_Fact: { pos: { x: 175, y: 418 }, fontSize: 10 },
+  The_day_of_proof_of_fact: { pos: { x: 205, y: 418 }, fontSize: 10 },
+  Company_Name: { pos: { x: 210, y: 398 }, fontSize: 9 },
+  Company_zip_first: { pos: { x: 380, y: 418 }, fontSize: 9 },
+  Company_zip_last: { pos: { x: 415, y: 418 }, fontSize: 9 },
+  Company_tel_area: { pos: { x: 480, y: 418 }, fontSize: 9 },
+  Company_tel_city: { pos: { x: 512, y: 418 }, fontSize: 9 },
+  Company_tel_num: { pos: { x: 540, y: 418 }, fontSize: 9 },
+  Company_Address: { pos: { x: 370, y: 398 }, fontSize: 8, maxChars: 20, lineHeight: 10 },
+  Representative's_name: { pos: { x: 370, y: 375 }, fontSize: 9 },
+
+  designated_Hospital: { pos: { x: 255, y: 320 }, fontSize: 9 },
+  Claim_Hospital_name: { pos: { x: 390, y: 335 }, fontSize: 10 },
+
+  Hospital_name: { pos: { x: 210, y: 295 }, fontSize: 9 },
+  Hospital_Address: { pos: { x: 210, y: 275 }, fontSize: 8 },
+  Hospital_zip_first: { pos: { x: 505, y: 275 }, fontSize: 8 },
+  Hospital_zip_last: { pos: { x: 530, y: 275 }, fontSize: 8 },
+
+  after_Hospital: { pos: { x: 210, y: 245 }, fontSize: 9 },
+  after_Hospital_Address: { pos: { x: 210, y: 225 }, fontSize: 8 },
+  after_Hospital_zip_first: { pos: { x: 505, y: 225 }, fontSize: 8 },
+  after_Hospital_zip_last: { pos: { x: 530, y: 225 }, fontSize: 8 },
+
+  // ★全角13文字で綺麗に縦長枠内折り返し
+  Reason_for_after_Hospital: { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 13, lineHeight: 10 }
 };
 
-export class Form6PdfGenerator {
-  private jsonConfig: Form6JsonConfig;
+// 裏面 (Page 2) 座標マップ
+const PAGE2_FIELD_POSITIONS: Record<string, FieldConfig> = {
+  Multiple: { pos: { x: 210, y: 720 }, fontSize: 10 },
+  Number_of_workplaces: { pos: { x: 480, y: 720 }, fontSize: 10 },
+  Name_of_Special_Member_Organization: { pos: { x: 280, y: 662 }, fontSize: 9 },
+  ame_of_Special_Member_Organization: { pos: { x: 280, y: 662 }, fontSize: 9 },
+  Special_Insurance_num: { pos: { x: 210, y: 632 }, fontSize: 9 },
+  Year_of_joining: { pos: { x: 425, y: 632 }, fontSize: 9 },
+  Joining_Month: { pos: { x: 490, y: 632 }, fontSize: 9 },
+  Joining_date: { pos: { x: 525, y: 632 }, fontSize: 9 }
+};
 
-  constructor() {
-    const configPath = path.join(__dirname, "../config/form6.json");
-    const rawData = fs.readFileSync(configPath, "utf-8");
-    this.jsonConfig = JSON.parse(rawData);
+export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promise<Buffer> {
+  const templatePath = path.join(__dirname, "../../templates/form6_template.pdf");
+  const fontPath = path.join(__dirname, "../../fonts/NotoSansJP-Regular.ttf");
+
+  const templateBytes = fs.readFileSync(templatePath);
+  const fontBytes = fs.readFileSync(fontPath);
+
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  pdfDoc.registerFontkit(fontkit);
+  const customFont = await pdfDoc.embedFont(fontBytes);
+
+  const pages = pdfDoc.getPages();
+  const page1 = pages[0];
+  const page2 = pages.length > 1 ? pages[1] : null;
+
+  const data = mappedDataList[0];
+
+  // 1. 表面（Page 1）
+  drawFieldsToPage(page1, data, PAGE1_FIELD_POSITIONS, customFont);
+
+  // 2. 裏面（Page 2）
+  if (page2) {
+    drawFieldsToPage(page2, data, PAGE2_FIELD_POSITIONS, customFont);
   }
 
-  public async generatePdf(formDataList: MappedFormData[]): Promise<Buffer> {
-    const templatePath = path.join(__dirname, "../templates/form6.pdf");
-    const templateBytes = fs.readFileSync(templatePath);
-    
-    const outputPdf = await PDFDocument.create();
-    outputPdf.registerFontkit(fontkit);
+  const pdfBytes = await pdfDoc.save();
+  return Buffer.from(pdfBytes);
+}
 
-    const fontPath = path.join(__dirname, "../fonts/NotoSansJP-Regular.ttf");
-    const fontBytes = fs.readFileSync(fontPath);
-    const customFont = await outputPdf.embedFont(fontBytes);
+/**
+ * テキストを指定文字数で正確にスライスして改行配列を作る
+ */
+function splitTextByMaxChars(text: string, maxChars: number): string[] {
+  if (!text) return [];
+  const cleanText = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const rawLines = cleanText.split("\n");
+  const result: string[] = [];
 
-    for (const formData of formDataList) {
-      const templatePdf = await PDFDocument.load(templateBytes);
-      templatePdf.registerFontkit(fontkit);
+  for (const rawLine of rawLines) {
+    if (rawLine.length === 0) continue;
+    for (let i = 0; i < rawLine.length; i += maxChars) {
+      result.push(rawLine.slice(i, i + maxChars));
+    }
+  }
+  return result;
+}
 
-      const pages = templatePdf.getPages();
-      const page1 = pages[0];
+function drawFieldsToPage(
+  page: any,
+  data: MappedFormData,
+  fieldMap: Record<string, FieldConfig>,
+  font: PDFFont
+) {
+  for (const [key, config] of Object.entries(fieldMap)) {
+    const rawVal = data[key];
+    if (!rawVal) continue;
 
-      const page1Config = this.jsonConfig.pages.find((p) => p.page === 1);
-      if (page1Config) {
-        this.renderFields(page1, page1Config.fields, formData, customFont);
-      }
+    const fontSize = config.fontSize || 9;
+    const lineHeight = config.lineHeight || fontSize + 2;
+    const maxChars = config.maxChars;
 
-      if (pages.length > 1) {
-        const page2 = pages[1];
-        const page2Config = this.jsonConfig.pages.find((p) => p.page === 2);
-        if (page2Config) {
-          this.renderFields(page2, page2Config.fields, formData, customFont);
-        }
-      }
+    let lines: string[] = [];
 
-      const copiedPages = await outputPdf.copyPages(templatePdf, templatePdf.getPageIndices());
-      copiedPages.forEach((p) => outputPdf.addPage(p));
+    if (maxChars) {
+      lines = splitTextByMaxChars(String(rawVal), maxChars);
+    } else {
+      lines = [String(rawVal)];
     }
 
-    const pdfBytes = await outputPdf.save();
-    return Buffer.from(pdfBytes);
-  }
-
-  private renderFields(
-    targetPage: any,
-    fields: FieldConfig[],
-    formData: MappedFormData,
-    font: PDFFont
-  ): void {
-    for (const field of fields) {
-      const key = field.id;
-      const rawValue = formData[key];
-
-      if (rawValue === undefined || rawValue === null || rawValue === "") {
-        continue;
-      }
-
-      const strValue = String(rawValue);
-      const fontSize = field.fontSize || 10;
-
-      // ① 請求医療機関名: 改行なしの1行描画
-      if (key === "Claim_Hospital_name") {
-        const singleLineText = strValue.replace(/\r?\n/g, "");
-        targetPage.drawText(singleLineText, {
-          x: field.x,
-          y: field.y,
-          size: fontSize,
-          font
-        });
-        continue;
-      }
-
-      // ② OCR指定枠 (Pitchプロパティが存在する場合)
-      if (field.pitch && field.pitch > 0) {
-        const chars = strValue.split("");
-        chars.forEach((char: string, index: number) => {
-          targetPage.drawText(char, {
-            x: field.x + index * field.pitch!,
-            y: field.y,
-            size: fontSize,
-            font
-          });
-        });
-        continue;
-      }
-
-      // ③ 折り返し・行間ピッチ指定のある項目 (FIELD_WRAP_CONFIGS)
-      const wrapConfig = FIELD_WRAP_CONFIGS[key];
-      if (wrapConfig) {
-        const wrappedResult = wrapText(strValue, wrapConfig.maxChars);
-        const lines: string[] = typeof wrappedResult === "string"
-          ? wrappedResult.split("\n")
-          : Array.isArray(wrappedResult)
-            ? wrappedResult
-            : [String(wrappedResult)];
-
-        lines.forEach((line: string, index: number) => {
-          targetPage.drawText(line, {
-            x: field.x,
-            y: field.y - index * wrapConfig.lineHeight,
-            size: fontSize,
-            font
-          });
-        });
-        continue;
-      }
-
-      // ④ その他の標準印字
-      targetPage.drawText(strValue, {
-        x: field.x,
-        y: field.y,
+    let currentY = config.pos.y;
+    for (const line of lines) {
+      page.drawText(line, {
+        x: config.pos.x,
+        y: currentY,
         size: fontSize,
-        font
+        font,
+        color: rgb(0, 0, 0)
       });
+      currentY -= lineHeight;
     }
   }
 }
