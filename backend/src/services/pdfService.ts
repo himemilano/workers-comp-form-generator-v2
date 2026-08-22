@@ -133,7 +133,7 @@ export class PdfService {
         // C. 災害の原因と発生状況 (accident_detail) 専用描画
         if (field.id === "accident_detail") {
           const maxChars = field.maxChars || 47;
-          const lineHeight = field.lineHeight || 19.8;
+          const lineHeight = field.lineHeight || 20.8;
           const fixedFontSize = 10.5;
 
           const rawLines = strVal.split("\n");
