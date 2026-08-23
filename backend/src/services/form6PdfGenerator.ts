@@ -80,7 +80,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "after_Hospital_zip_last": { pos: { x: 530, y: 225 }, fontSize: 8 },
 
   // 最大幅35文字、行間を14に広げて枠内でゆったり配置（開始位置をy: 200に設定）
-  "Reason_for_after_Hospital": { pos: { x: 210, y: 200 }, fontSize: 8, maxChars: 35, lineHeight: 14 }
+  "Reason_for_after_Hospital": { pos: { x: 210, y: 200 }, fontSize: 8, maxChars: 35, lineHeight: 18 }
 };
 
 // 裏面 (Page 2) 座標マップ（様式第6号の実際の枠位置に合わせた調整値）
