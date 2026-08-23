@@ -180,7 +180,7 @@ export async function renderPdf(jsonFileName: string, mappedData: Record<string,
           // ④ 転院・薬局等の理由 (Reason_for_after_Hospital) : 行間設定
           if (field.id === "Reason_for_after_Hospital") {
             const maxChars = field.maxChars || 35;
-            const lineHeight = 17.2; // ★ここを変更して行間を微調整
+            const lineHeight = 17.4; // ★ここを変更して行間を微調整
             const lines: string[] = [];
             for (let i = 0; i < strVal.length; i += maxChars) {
               lines.push(strVal.substring(i, i + maxChars));
