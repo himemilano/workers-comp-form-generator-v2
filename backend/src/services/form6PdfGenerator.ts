@@ -51,7 +51,7 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "disaster_hour": { pos: { x: 250, y: 535 }, fontSize: 10 },
   "disaster_minute": { pos: { x: 278, y: 535 }, fontSize: 10 },
 
-  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 28, lineHeight: 11 },
+  "accident_detail": { pos: { x: 125, y: 495 }, fontSize: 8, maxChars: 30, lineHeight: 11 },
   "Location_and_condition_of_the_injury": { pos: { x: 125, y: 118 }, fontSize: 8, maxChars: 25, lineHeight: 10 },
 
   "Year_of_proof_of_fact": { pos: { x: 120, y: 418 }, fontSize: 10 },
