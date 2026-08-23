@@ -254,7 +254,7 @@ export function buildForm6Data(
 
     // 裏面（Page 2）指定キー名
     // "有" の場合は "〇"、空白などそれ以外は空文字 ""
-    "Multiple": String(rawMultiple).includes("有") ? "〇" : "",
+    "Multiple": (rawMultiple as any) === "有" ? "〇" : "",
     "Number_of_workplaces": numWorkplacesVal,
     "Name_of_Special_Member_Organization": specialOrgName,
     "ame_of_Special_Member_Organization": specialOrgName,
