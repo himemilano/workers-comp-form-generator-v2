@@ -73,13 +73,13 @@
       "page": 2,
       "name": "back",
       "fields": [
-        { "id": "Multiple", "x": 39, "y": 766, "fontSize": 10 },
-        { "id": "Number_of_workplaces", "x": 147, "y": 742, "fontSize": 10 },
-        { "id": "Special_Insurance_num", "x": 31, "y": 696, "fontSize": 10 },
-        { "id": "Name_of_Special_Member_Organization", "x": 383, "y": 731, "fontSize": 10 },
-        { "id": "Year_of_joining", "x": 358, "y": 707, "fontSize": 10 },
-        { "id": "Joining_Month", "x": 451, "y": 707, "fontSize": 10 },
-        { "id": "Joining_date", "x": 511, "y": 705, "fontSize": 10 }
+        { "id": "Multiple", "x": 109, "y": 625, "fontSize": 10 },
+        { "id": "Number_of_workplaces", "x": 147, "y": 601, "fontSize": 10 },
+        { "id": "Special_Insurance_num", "x": 150, "y": 555, "fontSize": 10 },
+        { "id": "Name_of_Special_Member_Organization", "x": 370, "y": 590, "fontSize": 10 },
+        { "id": "Year_of_joining", "x": 358, "y": 560, "fontSize": 10 },
+        { "id": "Joining_Month", "x": 451, "y": 560, "fontSize": 10 },
+        { "id": "Joining_date", "x": 511, "y": 560, "fontSize": 10 }
       ]
     }
   ]
