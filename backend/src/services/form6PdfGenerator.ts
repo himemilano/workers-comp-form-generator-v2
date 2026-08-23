@@ -83,16 +83,16 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "Reason_for_after_Hospital": { pos: { x: 210, y: 200 }, fontSize: 8, maxChars: 35, lineHeight: 14 }
 };
 
-// 裏面 (Page 2) 座標マップ（form5の実績と完全同一のフィールドキー）
+// 裏面 (Page 2) 座標マップ（様式第6号の実際の枠位置に合わせた調整値）
 const PAGE2_FIELD_POSITIONS: Record<string, FieldConfig> = {
-  // ⑨ その他就業先の有無（有・無の丸つけ／テキスト）
-  "Multiple": { pos: { x: 39, y: 766 }, fontSize: 10 },
-  "Number_of_workplaces": { pos: { x: 147, y: 742 }, fontSize: 10 },
-  "Name_of_Special_Member_Organization": { pos: { x: 383, y: 731 }, fontSize: 10 },
-  "Special_Insurance_num": { pos: { x: 31, y: 696 }, fontSize: 10 },
-  "Year_of_joining": { pos: { x: 358, y: 707 }, fontSize: 10 },
-  "Joining_Month": { pos: { x: 451, y: 707 }, fontSize: 10 },
-  "Joining_date": { pos: { x: 511, y: 707 }, fontSize: 10 }
+  // ⑨ その他就業先の有無（様式6号では注意書きの下、y: 625 付近から開始）
+  "Multiple": { pos: { x: 39, y: 625 }, fontSize: 10 },
+  "Number_of_workplaces": { pos: { x: 147, y: 601 }, fontSize: 10 },
+  "Name_of_Special_Member_Organization": { pos: { x: 383, y: 590 }, fontSize: 10 },
+  "Special_Insurance_num": { pos: { x: 31, y: 555 }, fontSize: 10 },
+  "Year_of_joining": { pos: { x: 358, y: 566 }, fontSize: 10 },
+  "Joining_Month": { pos: { x: 451, y: 566 }, fontSize: 10 },
+  "Joining_date": { pos: { x: 511, y: 566 }, fontSize: 10 }
 };
 
 export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promise<Buffer> {
