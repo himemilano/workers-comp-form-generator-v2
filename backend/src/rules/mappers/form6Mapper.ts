@@ -182,6 +182,8 @@ export function buildForm6Data(
     "複数就業有無",
     "Multiple"
   ]) || "";
+  // "有" であれば "〇" に変換（それ以外や空欄の場合は空文字）
+  const multipleVal = multipleValRaw === "有" ? "〇" : "";
 
   const numWorkplacesVal = v([
     "表面以外の就業先の数(数字のみ)",
