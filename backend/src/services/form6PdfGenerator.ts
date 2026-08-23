@@ -79,12 +79,13 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
   "after_Hospital_zip_first": { pos: { x: 505, y: 225 }, fontSize: 8 },
   "after_Hospital_zip_last": { pos: { x: 530, y: 225 }, fontSize: 8 },
 
-  // 1行最大35文字で自然に折り返し、行間11を適用
-  "Reason_for_after_Hospital": { pos: { x: 210, y: 195 }, fontSize: 8, maxChars: 35, lineHeight: 11 }
+  // 最大幅35文字、行間を14に広げて枠内でゆったり配置（開始位置をy: 200に設定）
+  "Reason_for_after_Hospital": { pos: { x: 210, y: 200 }, fontSize: 8, maxChars: 35, lineHeight: 14 }
 };
 
-// 裏面 (Page 2) 座標マップ（form5の実績通り）
+// 裏面 (Page 2) 座標マップ（form5の実績と完全同一のフィールドキー）
 const PAGE2_FIELD_POSITIONS: Record<string, FieldConfig> = {
+  // ⑨ その他就業先の有無（有・無の丸つけ／テキスト）
   "Multiple": { pos: { x: 210, y: 720 }, fontSize: 10 },
   "Number_of_workplaces": { pos: { x: 480, y: 720 }, fontSize: 10 },
   "Name_of_Special_Member_Organization": { pos: { x: 280, y: 662 }, fontSize: 9 },
@@ -116,7 +117,7 @@ export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promis
     drawFieldsToPage(page1, data, PAGE1_FIELD_POSITIONS, customFont);
   }
 
-  // 2. 裏面 (Page 2) 描画 (form5と同一の処理)
+  // 2. 裏面 (Page 2) 描画
   if (page2) {
     drawFieldsToPage(page2, data, PAGE2_FIELD_POSITIONS, customFont);
   }
