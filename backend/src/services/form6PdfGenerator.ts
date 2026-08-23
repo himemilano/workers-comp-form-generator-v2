@@ -153,7 +153,6 @@ function drawFieldsToPage(
     const maxChars = config.maxChars;
 
     let lines: string[] = [];
-
     if (maxChars && maxChars > 0) {
       lines = splitTextByMaxChars(String(rawVal), maxChars);
     } else {
