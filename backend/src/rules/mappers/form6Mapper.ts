@@ -176,7 +176,7 @@ export function buildForm6Data(
   const h3Reason = rawH3Reason.replace(/\r?\n/g, "").trim();
 
   // 8. 裏面（Page 2）用項目（★入力サンプルのキー名に対応）
-  const multipleVal = v([
+  const rawMultiple = v([
     "その他就業先が有る場合(有と入力、無ければ空欄)",
     "その他就業先の有無",
     "複数就業有無",
@@ -253,7 +253,8 @@ export function buildForm6Data(
     "Pension_certificate_number": pensionNumber,
 
     // 裏面（Page 2）指定キー名
-    "Multiple": multipleVal === "有" ? "〇" : "",
+    // "有" の場合は "〇"、空白などそれ以外は空文字 ""
+    "Multiple": String(rawMultiple).includes("有") ? "〇" : "",
     "Number_of_workplaces": numWorkplacesVal,
     "Name_of_Special_Member_Organization": specialOrgName,
     "ame_of_Special_Member_Organization": specialOrgName,
