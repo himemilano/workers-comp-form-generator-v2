@@ -86,13 +86,13 @@ const PAGE1_FIELD_POSITIONS: Record<string, FieldConfig> = {
 // 裏面 (Page 2) 座標マップ（form5の実績と完全同一のフィールドキー）
 const PAGE2_FIELD_POSITIONS: Record<string, FieldConfig> = {
   // ⑨ その他就業先の有無（有・無の丸つけ／テキスト）
-  "Multiple": { pos: { x: 210, y: 720 }, fontSize: 10 },
-  "Number_of_workplaces": { pos: { x: 480, y: 720 }, fontSize: 10 },
-  "Name_of_Special_Member_Organization": { pos: { x: 280, y: 662 }, fontSize: 9 },
-  "Special_Insurance_num": { pos: { x: 210, y: 632 }, fontSize: 9 },
-  "Year_of_joining": { pos: { x: 425, y: 632 }, fontSize: 9 },
-  "Joining_Month": { pos: { x: 490, y: 632 }, fontSize: 9 },
-  "Joining_date": { pos: { x: 525, y: 632 }, fontSize: 9 }
+  "Multiple": { pos: { x: 39, y: 766 }, fontSize: 10 },
+  "Number_of_workplaces": { pos: { x: 147, y: 742 }, fontSize: 10 },
+  "Name_of_Special_Member_Organization": { pos: { x: 383, y: 731 }, fontSize: 10 },
+  "Special_Insurance_num": { pos: { x: 31, y: 696 }, fontSize: 10 },
+  "Year_of_joining": { pos: { x: 358, y: 707 }, fontSize: 10 },
+  "Joining_Month": { pos: { x: 451, y: 707 }, fontSize: 10 },
+  "Joining_date": { pos: { x: 511, y: 707 }, fontSize: 10 }
 };
 
 export async function generateForm6Pdf(mappedDataList: MappedFormData[]): Promise<Buffer> {
