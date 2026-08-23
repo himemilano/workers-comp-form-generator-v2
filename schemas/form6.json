@@ -73,8 +73,8 @@
       "page": 2,
       "name": "back",
       "fields": [
-        { "id": "Multiple", "x":97, "y": 694, "fontSize": 10 },
-        { "id": "Number_of_workplaces", "x": 190, "y": 665, "fontSize": 10 },
+        { "id": "Multiple", "x":96, "y": 694, "fontSize": 10 },
+        { "id": "Number_of_workplaces", "x": 190, "y": 667, "fontSize": 10 },
         { "id": "Special_Insurance_num", "x": 150, "y": 630, "fontSize": 10 },
         { "id": "Name_of_Special_Member_Organization", "x": 370, "y": 659, "fontSize": 10 },
         { "id": "Year_of_joining", "x": 337, "y": 633, "fontSize": 10 },
